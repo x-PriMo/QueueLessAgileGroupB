@@ -1,0 +1,275 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  displayName String?
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  passwordHash String?
+  platformRole String   @default("USER")
+  isActive     Boolean  @default(true)
+  resetToken   String?
+  resetTokenExpiry DateTime?
+
+  // Relations
+  memberships       CompanyMembership[]
+  shifts            Shift[]
+  reservations      Reservation[]
+  workerReservations Reservation[] @relation("WorkerReservations")
+  queueEntries      QueueEntry[] @relation("QueueWorker")
+  sessions          Session[]
+  appliedRegistrations CompanyRegistration[] @relation("Applicant")
+  decidedRegistrations CompanyRegistration[] @relation("Decider")
+
+  // NAPRAWIONE: Dodano indeksy dla poprawy wydajności
+  @@index([email])
+  @@index([platformRole])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Company {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  category     String   // BARBER, COSMETICS, AUTO_SERVICE, SPA, HEALTH, IT_SERVICE, EDUCATION, FITNESS, OTHER
+  city         String
+  address      String
+  phone        String
+  contactEmail String
+  description  String?
+  timezone     String   @default("Europe/Warsaw")
+  logoUrl      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  // Relations
+  settings     CompanySettings?
+  workingHours WorkingHours[]
+  workBreaks   WorkBreak[]
+  memberships  CompanyMembership[]
+  shifts       Shift[]
+  reservations Reservation[]
+  queueEntries QueueEntry[]
+  registrations CompanyRegistration[]
+
+  // NAPRAWIONE: Dodano indeksy dla poprawy wydajności
+  @@index([category])
+  @@index([city])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("companies")
+}
+
+model CompanySettings {
+  companyId                        String  @id
+  slotMinutes                      Int     @default(30)
+  traineeExtraMinutes              Int     @default(10)
+  autoAcceptReservations           Boolean @default(true)
+  allowReservations                Boolean @default(true)
+  allowWalkIns                     Boolean @default(true)
+  maxAdvanceBookingDays            Int     @default(30)
+  minAdvanceBookingHours           Int     @default(2)
+  minBookingNoticeMinutes          Int     @default(120)
+  defaultServiceDurationMinutes    Int     @default(60)
+  bufferBetweenServicesMinutes     Int     @default(15)
+  requireCustomerPhone             Boolean @default(true)
+  requireCustomerEmail             Boolean @default(true)
+  requirePhone                     Boolean @default(false)
+  sendConfirmationEmails           Boolean @default(true)
+  sendConfirmationEmail            Boolean @default(true)
+  sendReminderEmails               Boolean @default(true)
+  reminderHoursBefore              Int     @default(24)
+  autoConfirmReservations          Boolean @default(false)
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_settings")
+}
+
+model WorkingHours {
+  id        String @id @default(cuid())
+  companyId String
+  weekday   Int    // 0-6 (Sunday-Saturday)
+  openTime  String // "HH:mm"
+  closeTime String // "HH:mm"
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, weekday])
+  @@map("working_hours")
+}
+
+model WorkBreak {
+  id        String @id @default(cuid())
+  companyId String
+  weekday   Int    // 0-6 (Sunday-Saturday)
+  startTime String // "HH:mm"
+  endTime   String // "HH:mm"
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("work_breaks")
+}
+
+model CompanyMembership {
+  id        String  @id @default(cuid())
+  userId    String
+  companyId String
+  role      String  // OWNER, WORKER
+  canServe  Boolean @default(false)
+  isTrainee Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  // NAPRAWIONE: Dodano indeksy dla poprawy wydajności
+  @@index([companyId, role])
+  @@index([userId, isActive])
+  @@map("company_memberships")
+}
+
+model Shift {
+  id        String @id @default(cuid())
+  companyId String
+  userId    String
+  date      String // "YYYY-MM-DD"
+  startTime String // "HH:mm"
+  endTime   String // "HH:mm"
+  source    String // OWNER, WORKER
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, date])
+  @@index([companyId, date])
+  // NAPRAWIONE: Dodano dodatkowe indeksy
+  @@index([userId, date])
+  @@map("shifts")
+}
+
+model CompanyRegistration {
+  id           String    @id @default(cuid())
+  applicantId  String
+  companyName  String
+  category     String    // BARBER, COSMETICS, etc.
+  city         String
+  address      String
+  phone        String
+  contactEmail String
+  description  String?
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminComment String?
+  decidedAt    DateTime?
+  decidedById  String?
+  createdAt    DateTime  @default(now())
+
+  // Relations
+  applicant User  @relation("Applicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  decider   User? @relation("Decider", fields: [decidedById], references: [id])
+  company   Company? @relation(fields: [companyId], references: [id])
+  companyId String?
+
+  // NAPRAWIONE: Dodano indeksy dla poprawy wydajności
+  @@index([status])
+  @@index([applicantId])
+  @@index([createdAt])
+  @@map("company_registrations")
+}
+
+model Reservation {
+  id                String   @id @default(cuid())
+  companyId         String
+  userId            String?
+  workerId          String?
+  date              String   // YYYY-MM-DD
+  startTime         String   // HH:mm
+  endTime           String   // HH:mm
+  status            String   @default("PENDING") // PENDING, CONFIRMED, CANCELLED, COMPLETED, NO_SHOW
+  customerName      String
+  customerPhone     String
+  customerEmail     String
+  serviceDescription String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  worker      User?        @relation("WorkerReservations", fields: [workerId], references: [id], onDelete: SetNull)
+  queueEntries QueueEntry[]
+
+  // NAPRAWIONE: Dodano indeksy dla poprawy wydajności
+  @@index([companyId, date])
+  @@index([companyId, status])
+  @@index([userId])
+  @@index([workerId])
+  @@index([customerEmail])
+  @@index([createdAt])
+  @@map("reservations")
+}
+
+model QueueEntry {
+  id                    String   @id @default(cuid())
+  companyId             String
+  reservationId         String?
+  workerId              String?
+  status                String   @default("WAITING") // WAITING, READY, IN_PROGRESS, COMPLETED, CANCELLED
+  customerName          String
+  customerPhone         String
+  customerEmail         String
+  position              Int?
+  estimatedWaitMinutes  Int?
+  queuePosition         Int?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  worker      User?        @relation("QueueWorker", fields: [workerId], references: [id], onDelete: SetNull)
+
+  // NAPRAWIONE: Dodano indeksy dla poprawy wydajności
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
+  @@index([customerEmail])
+  @@index([workerId])
+  @@map("queue_entries")
+}
+
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String
+  expiresAt DateTime
+  userId    String?
+
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // NAPRAWIONE: Dodano indeksy dla poprawy wydajności
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
