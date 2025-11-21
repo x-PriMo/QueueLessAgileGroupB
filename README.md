@@ -4,8 +4,6 @@ Uproszczona platforma rezerwacyjna (styl Booksy) zgodna z wytycznymi z `project_
 
 ## Dokumentacja
 
-- Kompleksowy przewodnik projektu: zobacz `docs/PROJECT_GUIDE.md`.
-- Kontekst dla AI (Gemini 3): zobacz `docs/AI_CONTEXT.md`.
 
 Stos technologiczny:
 - Frontend: React + TypeScript + Vite, Tailwind, Headless UI, React Router
