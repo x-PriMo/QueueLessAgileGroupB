@@ -1,0 +1,119 @@
+Filename: queueless-trae-step-by-step.txt
+
+MODEL: Sonnet 4.0 beta
+MCP: GitHub (włącz), Figma (opcjonalnie). Utwórz nowe repo PRIVATE: queueless, owner=<WPISZ_SWÓJ_GITHUB_USERNAME>. Pracuj etapami i po każdym etapie zatrzymaj się i czekaj na moje „DALEJ”.
+
+WAŻNE USTALENIA
+- Bez Prisma. Użyj czystego SQLite z better-sqlite3 (szybki, stabilny) + własny runner migracji SQL.
+- Stos (tylko te narzędzia): 
+  FE: React + TypeScript + Vite, Tailwind CSS, Headless UI, React Router.
+  BE: Node.js + Express + TypeScript.
+  DB: SQLite (better-sqlite3) + migracje .sql + seed.
+  Walidacje: Zod. Daty: Luxon. E‑mail: Nodemailer (Ethereal → SMTP z .env).
+  Testy: Jest, React Testing Library, supertest. CI: GitHub Actions. ESLint + Prettier (printWidth 80).
+  Real‑time: polling (co 5 s). Brak WebSocketów/SSE. Język UI/e‑mail: PL.
+- RBAC i domena jak wcześniej (multi‑tenant: USER, OWNER, WORKER, PLATFORM_ADMIN; flags: canServe, isTrainee).
+
+STRUKTURA REPO (monorepo)
+- / (root): package.json (workspaces), .eslintrc.json, .prettierrc, .gitignore, README.md, .github/workflows/ci.yml
+- /packages/backend: package.json, tsconfig.json, .env.example, src/, db/
+  - db/migrations/*.sql (numerowane), db/migrate.ts (runner), db/seed.ts
+  - src/server.ts, src/lib/db.ts (better-sqlite3 init: WAL, busyTimeout), src/lib/mailer.ts, src/lib/ics.ts
+  - src/middleware/{auth.ts,rbac.ts,rateLimit.ts,error.ts}
+  - src/routes/{auth,companies,settings,working-hours,breaks,shifts,slots,reservations,queue,admin,uploads,health}.ts
+- /packages/frontend: package.json, vite.config.ts, tsconfig.json, tailwind.config.js, postcss.config.js, index.html, src/
+  - src/main.tsx, src/App.tsx, src/lib/api.ts (fetch z credentials), src/router, src/pages/*, src/components/*
+
+DOCELNE TABLICE (migracje utwórz jako .sql)
+User(id PK, email UNIQUE, passwordHash, displayName, platformRole TEXT, isActive BOOL, createdAt)
+Company(id PK, slug UNIQUE, name, category TEXT, city, address, phone, contactEmail, description, timezone, logoUrl, isActive BOOL, createdAt)
+CompanySettings(id PK, companyId UNIQUE FK, slotMinutes INT, traineeExtraMinutes INT, autoAcceptReservations BOOL)
+WorkingHours(id PK, companyId FK, weekday INT, openTime TEXT, closeTime TEXT, UNIQUE(companyId,weekday))
+WorkBreak(id PK, companyId FK, weekday INT, startTime TEXT, endTime TEXT)
+CompanyMembership(id PK, userId FK, companyId FK, role TEXT, canServe BOOL, isTrainee BOOL, isActive BOOL, UNIQUE(userId,companyId))
+Shift(id PK, companyId FK, userId FK, date TEXT, startTime TEXT, endTime TEXT, source TEXT, INDEX(companyId,date))
+Reservation(id PK, companyId FK, customerId FK, workerId FK NULL, date TEXT, startTime TEXT, endTime TEXT, status TEXT, serviceDurationMinutes INT, note TEXT, createdAt, INDEX(companyId,date,startTime))
+QueueEntry(id PK, companyId FK, reservationId FK UNIQUE, workerId FK NULL, status TEXT, createdAt, updatedAt)
+
+TRYB PRACY (krok po kroku według tasków z prezentacji)
+Po każdym ETAPIE: 
+- commit + push, uruchom testy i build (CI), wygeneruj krótkie podsumowanie „Co działa”, link do PR, oraz czekaj na moje „DALEJ”. 
+- Jeśli testy nie przejdą – popraw do zielonego.
+
+ETAP 1 (T1–T5) – Fundamenty
+- Inicjalizuj monorepo, ESLint/Prettier, skrypty (dev, build, test, lint, format).
+- BE scaffold (Express+TS), FE scaffold (Vite+React+TS+Tailwind).
+- CI w GitHub Actions (lint/test/build dla obu pakietów).
+- DB: dodaj db/migrations/0001_init.sql (User), 0002_companies.sql (Company+Settings), runner migrate.ts i seed admina (admin@queueless.local / Admin123!).
+DoD: health endpoint; FE uruchamia się; seed tworzy admina; CI zielone.
+
+ETAP 2 (T6–T10) – Auth + wyszukiwarka
+- T6: Rejestracja/logowanie (bcrypt, sesje cookie, Zod).
+- T7: „Moje konto” i wylogowanie.
+- T9: GET /companies?name=&city=&category= + FE CompaniesSearch.
+- T10: CompanyProfile (logo, opis, godziny skrót).
+- T8 (szkielet): Settings w DB (slotMinutes=30, traineeExtra=10, autoAccept=true).
+Testy: supertest (auth), RTL (formularz logowania). DoD: user może się zarejestrować, zalogować i wyszukać firmy.
+
+ETAP 3 (T11–T15) – Godziny, przerwy, sloty, formularz
+- T11/T12: CRUD WorkingHours/WorkBreak (walidacje: zakresy, kolizje).
+- T13: Algorytm wolnych slotów (open/close – przerwy – kolizje – shifty).
+- T14: Formularz rezerwacji (kalendarz + lista slotów; „dowolny”/konkretny).
+- T15: Auto‑assign najmniej obciążonego pracownika (ze zmianą; omijaj canServe=false).
+Testy: supertest (slots z przerwami/kolizjami), RTL (formularz rezerwacji).
+
+ETAP 4 (T16–T20) – Rezerwacje, limit, RBAC, ustawienia UI
+- T16: E‑mail potwierdzenia rezerwacji (Ethereal) + link „Pobierz ICS” (lib ics).
+- T17: Rate‑limit POST /reservations (≥30 s/IP+email).
+- T18: „Moje rezerwacje” (lista, szczegóły).
+- T19: RBAC (memberGuard, roleGuard).
+- T20: Panel ustawień firmy (slotMinutes, traineeExtra, autoAccept, kategoria).
+DoD: rezerwacja end‑to‑end (e‑mail), limit działa; RBAC chroni trasy.
+
+ETAP 5 (T21–T25) – Kolejka, pracownicy, shifty
+- T21: Panel kolejki (WAITING/IN_SERVICE/DONE), polling 5 s, akcje.
+- T22: Dodawanie/usuwanie pracownika po e‑mailu; flags: canServe/isTrainee.
+- T23: Shifty – dwa tryby (OWNER/WORKER), walidacje względem godzin/przerw.
+- T24: Wybór konkretnego pracownika przy rezerwacji (jeśli w grafiku).
+- T25: OWNER może mieć canServe i własne shifty.
+Testy: supertest (kolejka, shifty, membership), RTL (kolejka – smoke).
+
+ETAP 6 (T26–T30) – Trainee, ETA, manual accept, reschedule, e‑maile decyzji
+- T26: isTrainee → serviceDuration = slot + traineeExtra.
+- T27: ETA w kolejce (suma pozostałych czasów + opóźnienia).
+- T28: Przełącznik autoAccept ON/OFF (OFF → PENDING).
+- T29: Reschedule klienta (blokada gdy IN_SERVICE/DONE).
+- T30: E‑maile o akceptacji/odrzuceniu.
+DoD: manual accept/reschedule/ETA działają; testy zielone.
+
+ETAP 7 (T31–T35) – Admin i moderacja (uwaga: bez „Moje wnioski/Załóż firmę”)
+- Zgodnie z najnowszą decyzją: nie ma publicznego formularza wniosku.
+- Zastąp T31–T33: w panelu Admina formularz „Utwórz firmę z e‑maila właściciela”.
+  Po zatwierdzeniu: utwórz Company + Settings + OWNER dla podanego userEmail 
+  (jeżeli brak konta – komunikat + opcja wysłania maila resetu hasła).
+- T34: Moderacja: soft ban firmy/użytkownika.
+- T35: Kategorie – zamknięta lista + filtr w wyszukiwarce.
+Testy: supertest admin endpoints (create company, ban), RTL (widok Admina).
+
+ETAP 8 (T36–T40) – Profil firmy (rozszerzony), upload logo, WCAG, testy
+- T36: CompanyProfile rozszerzony (opis, godziny, dostępni pracownicy danego dnia).
+- T37: Upload logo PNG/JPG (≥256×256, ≤6 MB), walidacja MIME/rozmiaru, serwowanie /uploads/logos.
+- T38: WCAG podstawy: etykiety, aria‑invalid, focus ring, kontrast.
+- T39: Testy API (slots, reservations, rbac, queue, admin) – pokrycie krytyczne.
+- T40: RTL – formularze i listy (sanity/regresja).
+DoD: CI zielone; README uzupełnione (instrukcja, SMTP, role, konta seed).
+
+REGUŁY BEZPIECZEŃSTWA I JAKOŚCI
+- Bcrypt do haseł; express‑session (sameSite=lax, secure=false dev); helmet.
+- Centralny error handler; 404 dla nieznanych tras; CORS: origin http://localhost:5173, credentials true.
+- DB: włącz WAL, busyTimeout 5000 ms, indeksy (companyId,date,startTime). Transakcje dla create/reschedule/auto‑assign.
+- Upload: bezpieczne nazwy plików, kontrola MIME/rozmiaru.
+- UI: ukryj elementy niedostępne dla ról (RBAC w UI).
+- Brak „wkrótce” — jeśli funkcja niegotowa, zaimplementuj teraz lub ukryj.
+
+AUTOMATYZACJA
+- Po każdym etapie: uruchom „npm ci → test → build” lokalnie i w Actions, w PR wypisz checklistę zrealizowanych punktów i link do podglądu (jeśli jest).
+- Jeśli testy nie przejdą – popraw przed przejściem do kolejnego etapu.
+- Czekaj na moje potwierdzenie „DALEJ” po każdym etapie.
+
+START TERAZ OD ETAPU 1.

@@ -1,0 +1,112 @@
+# Lista zadań QueueLess - Sprint 1
+
+| ID | Opis | Co robimy | Kto robi | Trudność | Łączny czas | Status |
+|----|------|-----------|----------|----------|-------------|--------|
+| **T1** | Inicjalizacja środowiska | Ustawiamy projekt, lint/format, skrypty, krótką instrukcję | **Rafał** | 3/10 | **4h** (Tydz.1: 4h) | ✅ UKOŃCZONE |
+| **T2** | Frontend scaffold | Vite + React + TS + Tailwind + Headless UI | **Kamil** | 3/10 | **10h** (Tydz.1: 5h, Tydz.2: 5h) | ✅ UKOŃCZONE |
+| **T3** | Backend scaffold | Express + TS, struktura folderów, .env, middleware | **Przemysław** | 5/10 | **5h** (Tydz.1: 3h, Tydz.2: 2h) | ✅ UKOŃCZONE |
+| **T4** | Baza i migracje (better-sqlite3 + SQLite) | Modele, migracje, dane startowe (seed) | **Daniel** | 5/10 | **10h** (Tydz.1: 2h, Tydz.2: 4h+2h, Tydz.3: 4h) | ✅ UKOŃCZONE |
+| **T5** | GitHub Actions (CI) | Konfigurujemy CI/CD | **Rafał** | 3/10 | **4h** (Tydz.1: 2h, Tydz.2: 2h) | ✅ UKOŃCZONE |
+| **T6** | Rejestracja i logowanie (sesje) | Formularze, sesje cookie, bcrypt, walidacje | **Jakub** | 8/10 | **4h** (Tydz.1: 2h, Tydz.2: 2h) | ✅ UKOŃCZONE |
+| **T7** | Moje konto + wylogowanie | Prosty widok profilu i działające wylogowanie | **Jakub** | 3/10 | **9h** (Tydz.1: 4h, Tydz.2: 2h, Tydz.3: 3h) | ✅ UKOŃCZONE |
+| **T8** | Ustawienia firmy | slotMinutes, autoAccept, traineeExtra – CRUD + widok | **Daniel** | 5/10 | **5h** (Tydz.3: 5h) | 🔄 W TOKU (75%) |
+| **T9** | Wyszukiwarka firm | Filtrowanie po nazwie i mieście, paginacja | **Jakub** | 5/10 | **4h** (Tydz.3: 4h) | ✅ UKOŃCZONE |
+| **T10** | Profil firmy (publiczny skrót) | Opis, godziny, kontakt, logo – wyświetlenie | **Daniel** | 3/10 | - | 🔄 W TOKU (60%) |
+| **T11** | Godziny pracy (per dzień) | Ustawianie godzin na każdy dzień tygodnia | **Daniel** | 8/10 | - | ✅ UKOŃCZONE |
+| **T12** | Przerwy (per dzień) | Dodawanie przerw, kontrola kolizji | **Daniel** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T13** | Algorytm wolnych slotów | Liczymy dostępne terminy z godzin, przerw i zajętości | **Przemysław** | 8/10 | - | 🔄 W TOKU (80%) |
+| **T14** | Formularz rezerwacji | Wybór daty/slotu, „dowolny" lub konkretny pracownik | **Kamil** | 8/10 | **4h** (Tydz.2: 4h) | ✅ UKOŃCZONE |
+| **T15** | Auto-przydział pracownika | Najmniej obciążony pracownik przy auto-accept | **Daniel** | 5/10 | **6h** (Tydz.3: 6h) | ✅ UKOŃCZONE |
+| **T16** | E-mail potwierdzenia rezerwacji (ICS) | Wysyłka e-mail po rezerwacji z załącznikiem ICS | **Rafał** | 5/10 | **8h** (Tydz.2: 3h, Tydz.3: 5h) | ✅ UKOŃCZONE |
+| **T17** | Rate limit POST /reservations | Ochrona endpointu przed spamem | **Przemysław** | 3/10 | **6h** (Tydz.1: 2h, Tydz.2: 2h, Tydz.3: 2h) | ✅ UKOŃCZONE |
+| **T18** | „Moje rezerwacje" | Lista i szczegóły rezerwacji klienta | **Kamil** | 5/10 | **3h** (Tydz.2: 3h) | ✅ UKOŃCZONE |
+| **T19** | RBAC firmy (Owner/Worker) | Strażnicy uprawnień i kontekst companyId w API | **Przemysław** | 8/10 | **13h** (Tydz.1: 4h, Tydz.2: 3h, Tydz.3: 6h) | ✅ UKOŃCZONE |
+| **T20** | Panel ustawień firmy (UI) | UI do slotu/autoAccept/traineeExtra/kategoria | **Kamil** | 8/10 | **10h** (Tydz.2: 4h, Tydz.3: 6h) | ✅ UKOŃCZONE |
+| **T21** | Panel kolejki (polling 5s) | Lista dnia, zmiana statusów, odświeżanie co 5s | **Kamil** | 8/10 | **8h** (Tydz.3: 8h) | ✅ UKOŃCZONE |
+| **T22** | Dodawanie/usuwanie pracownika | Owner dodaje konto po e-mail u, włącza/wyłącza | **Daniel** | 8/10 | - | ❌ NIEROZPOCZĘTE |
+| **T23** | Grafik zmian (OWNER/WORKER) | Zmiany: data, start, koniec; dwa tryby wprowadzania | **Daniel** | 8/10 | - | ❌ NIEROZPOCZĘTE |
+| **T24** | Wybór pracownika przy rezerwacji | Pokazujemy dostępnych z grafiku, walidujemy kolizje | **Kamil** | 8/10 | - | ❌ NIEROZPOCZĘTE |
+| **T25** | Owner jako pracownik (canServe) | Flaga canServe – właściciel też obsługuje wizyty | **Daniel** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T26** | Czas praktykanta (isTrainee) | Doliczamy traineeExtraMinutes do czasu usługi | **Daniel** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T27** | ETA w kolejce | Szacujemy czas obsługi/oczekiwania | **Przemysław** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T28** | Manualna akceptacja (ON/OFF) | Przełącznik; ręczne ACCEPT/DECLINE rezerwacji | **Przemysław** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T29** | Przełożenie terminu (reschedule) | Zmiana na inny wolny slot tej samej firmy | **Przemysław** | 8/10 | - | ❌ NIEROZPOCZĘTE |
+| **T30** | E-maile decyzji (ACCEPTED/DENIED) | E-maile o akceptacji/odrzuceniu rezerwacji | **Rafał** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T31** | Wniosek o rejestrację firmy (formularz) | Formularz: nazwa, kategoria, miasto, adres, kontakt, opis | **Jakub** | 8/10 | - | ❌ NIEROZPOCZĘTE |
+| **T32** | Panel Admina (approve/reject) | Lista wniosków, approve/reject z komentarzem | **Jakub** | 8/10 | **10h** (Tydz.2: 4h, Tydz.3: 6h) | ✅ UKOŃCZONE |
+| **T33** | Auto-utworzenie firmy + OWNER | Po akceptacji zakładamy firmę i nadajemy Owner | **Przemysław** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T34** | Moderacja (ban/dezaktywacja) | Admin blokuje firmę/użytkownika (soft) | **Przemysław** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T35** | Kategorie (lista) + filtr | Zamknięta lista kategorii + filtr w wyszukiwarce | **Jakub** | 3/10 | - | ❌ NIEROZPOCZĘTE |
+| **T36** | Profil firmy (rozszerzony) | Opis, godziny, dostępni pracownicy danego dnia | **Jakub** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T37** | Upload logo | PNG/JPG, min. 256×256, do 6 MB; walidacja i upload | **Kamil** | 8/10 | - | ❌ NIEROZPOCZĘTE |
+| **T38** | WCAG – podstawy | Etykiety, fokus, kontrast na głównych formularzach | **Rafał** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+| **T39** | Dokumentacja projektu | AI_CONTEXT, Rozpiska, Raporty Scrum | **Rafał** | 8/10 | **8h** (Tydz.3: 8h) | 🔄 W TOKU (90%) |
+| **T40** | Testy komponentów (RTL) | Formularze i listy – sanity/regresja | **Rafał** | 5/10 | - | ❌ NIEROZPOCZĘTE |
+
+---
+
+## Podsumowanie Sprint 1
+
+### ✅ Ukończone (18 zadań):
+T1, T2, T3, T4, T5, T6, T7, T9, T11, T14, T15, T16, T17, T18, T19, T20, T21, T32
+
+**Łączny czas ukończonych zadań**: ~103h
+
+### 🔄 W toku (4 zadania):
+- T8 (75% - Settings w DB) - 5h
+- T10 (60% - Worker services)
+- T13 (80% - Algorytm wolnych slotów)
+- T39 (90% - Dokumentacja) - 8h
+
+**Łączny czas zadań w toku**: ~13h
+
+### ❌ Nierozpoczęte (18 zadań):
+T12, T22-T31, T33-T38, T40
+
+---
+
+## Podział czasu pracy w zespole (Sprint 1):
+
+### Rafał (Infra/CI + Powiadomienia + Dokumentacja):
+- ✅ T1: 4h
+- ✅ T5: 4h
+- ✅ T16: 8h
+- 🔄 T39: 8h
+- **Razem: 24h**
+
+### Przemysław (Backend + RBAC):
+- ✅ T3: 5h
+- ✅ T17: 6h
+- ✅ T19: 13h
+- **Razem: 24h**
+
+### Daniel (Baza/Model + Backend Core):
+- ✅ T4: 10h
+- ✅ T15: 6h
+- 🔄 T8: 5h
+- **Razem: 21h**
+
+### Kamil (Frontend + UI/UX):
+- ✅ T2: 10h
+- ✅ T14: 4h
+- ✅ T18: 3h
+- ✅ T20: 10h
+- ✅ T21: 8h
+- **Razem: 35h**
+
+### Jakub (Frontend + Auth + Admin):
+- ✅ T6: 4h
+- ✅ T7: 9h
+- ✅ T9: 4h
+- ✅ T32: 10h
+- **Razem: 27h**
+
+---
+
+## Metryki Sprint 1:
+
+- **Story Points ukończone**: 84%
+- **Zadania ukończone**: 18/40 (45%)
+- **Zadania Sprint 1 (T1-T21)**: 17/21 ukończone (81%)
+- **Łączny czas pracy zespołu**: ~131h (zarejestrowany w tabelkach)
+- **Średnia trudność ukończonych**: 5.6/10

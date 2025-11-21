@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "types": ["node", "express", "cors", "express-session", "helmet", "jest"],
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types",
+      "../../node_modules/@types"
+    ],
+    "lib": ["ES2022"]
+  },
+  "include": ["src", "db", "tests"]
+}

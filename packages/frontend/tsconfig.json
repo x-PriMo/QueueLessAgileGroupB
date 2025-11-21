@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "types": ["react", "react-dom", "vite/client"],
+    "lib": ["ES2022", "DOM"],
+    "moduleResolution": "Bundler"
+  },
+  "include": ["src", "vite.config.ts", "index.html"]
+}

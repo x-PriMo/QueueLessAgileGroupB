@@ -1,0 +1,15 @@
+/* QueueLess Brand Styles */
+@import './brand.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+
+/* Global font scaling via data attribute */
+html[data-font='normal'] { font-size: 16px; }
+html[data-font='large'] { font-size: 18px; }
+
+/* Smooth transitions for theme toggling */
+html, body { transition: background-color 0.2s ease, color 0.2s ease; }
