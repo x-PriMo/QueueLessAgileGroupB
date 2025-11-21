@@ -2,6 +2,13 @@
 
 Uproszczona platforma rezerwacyjna (styl Booksy) zgodna z wytycznymi z `project_rules.md`.
 
+## Struktura projektu
+
+- `packages/backend/` - Serwer backendu (Node.js + Express + TypeScript)
+- `packages/frontend/` - Aplikacja frontendowa (React + TypeScript + Vite)
+- `docs/` - Dokumentacja projektu
+- `docs/assets/` - Zasoby graficzne (loga)
+
 ## Dokumentacja
 
 
