@@ -11,3 +11,4 @@ export const CATEGORIES: string[] = [
   'Mechanik',
   'Inne',
 ];
+ 
