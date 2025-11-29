@@ -1,21 +1,21 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import db from '../lib/db';
-import { authGuard, roleGuard } from '../middleware/auth';
+import { authGuard } from '../middleware/auth';
 import { DateTime } from 'luxon';
 
 const router = Router();
 
 // Middleware sprawdzający czy użytkownik jest pracownikiem
-router.use(authGuard, roleGuard('WORKER'));
+router.use(authGuard);
 
 // Pobierz kolejkę dla pracownika
-router.get('/queue', (req: any, res: any) => {
+router.get('/queue', authGuard, (req: Request, res: Response) => {
     const userId = req.session.userId;
     const today = DateTime.now().toFormat('yyyy-MM-dd');
 
     // Pobierz firmę pracownika
-    const member = db.prepare('SELECT companyId FROM company_members WHERE userId = ? AND role = "WORKER"').get(userId) as { companyId: number } | undefined;
+    const member = db.prepare('SELECT companyId FROM company_members WHERE userId = ? AND (role = "WORKER" OR role = "OWNER")').get(userId) as { companyId: number } | undefined;
 
     if (!member) {
         return res.status(404).json({ error: 'Worker not assigned to any company' });
@@ -112,6 +112,44 @@ router.get('/queue', (req: any, res: any) => {
     res.json({ queue: [...queueWithEstimates, ...doneWithEstimates] });
 });
 
+// Zmień status rezerwacji
+router.post('/reservations/:id/status', authGuard, (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { status } = req.body; // Expected status: 'IN_SERVICE', 'DONE', 'CANCELLED'
+    const userId = req.session.userId;
+
+    // Sprawdź, czy rezerwacja należy do firmy pracownika
+    const reservation = db.prepare(`
+        SELECT r.id, r.companyId, r.workerId
+        FROM reservations r
+        JOIN company_members cm ON r.companyId = cm.companyId
+        WHERE r.id = ? AND cm.userId = ? AND (cm.role = 'WORKER' OR cm.role = 'OWNER')
+    `).get(id, userId) as { id: number; companyId: number; workerId: number | null } | undefined;
+
+    if (!reservation) {
+        return res.status(404).json({ error: 'Reservation not found or not accessible by this worker.' });
+    }
+
+    // Jeśli status to IN_SERVICE, przypisz pracownika do rezerwacji, jeśli nie jest przypisany
+    let updateQuery = 'UPDATE reservations SET status = ?';
+    const params = [status];
+
+    if (status === 'IN_SERVICE' && reservation.workerId === null) {
+        updateQuery += ', workerId = ?';
+        params.push(userId);
+    }
+    updateQuery += ' WHERE id = ?';
+    params.push(id);
+
+    const result = db.prepare(updateQuery).run(...params);
+
+    if (result.changes === 0) {
+        return res.status(400).json({ error: 'Failed to update reservation status.' });
+    }
+
+    res.json({ message: 'Reservation status updated successfully.' });
+});
+
 // Pobierz dzisiejszą zmianę
 router.get('/shift/today', (req: any, res: any) => {
     const userId = req.session.userId;
@@ -151,7 +189,7 @@ router.get('/company', (req: any, res: any) => {
     SELECT c.id, c.name, c.slotMinutes, c.traineeExtraMinutes
     FROM companies c
     JOIN company_members cm ON cm.companyId = c.id
-    WHERE cm.userId = ? AND cm.role = 'WORKER'
+    WHERE cm.userId = ? AND (cm.role = 'WORKER' OR cm.role = 'OWNER')
   `).get(userId);
 
     if (!company) {
