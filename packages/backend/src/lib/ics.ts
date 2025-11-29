@@ -2,8 +2,8 @@ import { DateTime } from 'luxon';
 
 export interface ICSEvent {
   uid: string;
-  startTime: DateTime;
-  endTime: DateTime;
+  startTime: any;
+  endTime: any;
   summary: string;
   description?: string;
   location?: string;
@@ -29,7 +29,7 @@ function escapeICSText(text: string): string {
     .replace(/\n/g, '\\n');
 }
 
-function formatDateTime(dt: DateTime): string {
+function formatDateTime(dt: any): string {
   return dt.toFormat('yyyyMMddTHHmmss');
 }
 
@@ -39,7 +39,7 @@ function generateUID(): string {
 
 export function generateICS(event: ICSEvent): string {
   const lines: string[] = [];
-  
+
   // Nagłówki
   lines.push('BEGIN:VCALENDAR');
   lines.push('VERSION:2.0');
@@ -47,40 +47,40 @@ export function generateICS(event: ICSEvent): string {
   lines.push('CALSCALE:GREGORIAN');
   lines.push('METHOD:REQUEST');
   lines.push('BEGIN:VEVENT');
-  
+
   // UID
   lines.push(`UID:${event.uid || generateUID()}`);
-  
+
   // Czas trwania
   lines.push(`DTSTART:${formatDateTime(event.startTime)}`);
   lines.push(`DTEND:${formatDateTime(event.endTime)}`);
   lines.push(`DTSTAMP:${formatDateTime(DateTime.now())}`);
-  
+
   // Tytuł i opis
   lines.push(`SUMMARY:${escapeICSText(event.summary)}`);
   if (event.description) {
     lines.push(`DESCRIPTION:${escapeICSText(event.description)}`);
   }
-  
+
   // Lokalizacja
   if (event.location) {
     lines.push(`LOCATION:${escapeICSText(event.location)}`);
   }
-  
+
   // Organizator
   if (event.organizer) {
     lines.push(`ORGANIZER;CN=${escapeICSText(event.organizer.name)}:mailto:${event.organizer.email}`);
   }
-  
+
   // Uczestnik
   if (event.attendee) {
     lines.push(`ATTENDEE;CN=${escapeICSText(event.attendee.name)};ROLE=REQ-PARTICIPANT:mailto:${event.attendee.email}`);
   }
-  
+
   // Status
   lines.push('STATUS:CONFIRMED');
   lines.push('SEQUENCE:0');
-  
+
   // Przypomnienia
   if (event.reminders && event.reminders.length > 0) {
     event.reminders.forEach((reminder, index) => {
@@ -97,18 +97,18 @@ export function generateICS(event: ICSEvent): string {
     lines.push('ACTION:DISPLAY');
     lines.push('DESCRIPTION:Przypomnienie o wizycie jutro');
     lines.push('END:VALARM');
-    
+
     lines.push('BEGIN:VALARM');
     lines.push('TRIGGER:-PT1H');
     lines.push('ACTION:DISPLAY');
     lines.push('DESCRIPTION:Przypomnienie o wizycie za 1 godzinę');
     lines.push('END:VALARM');
   }
-  
+
   // Zakończenie
   lines.push('END:VEVENT');
   lines.push('END:VCALENDAR');
-  
+
   return lines.join('\r\n');
 }
 
@@ -127,7 +127,7 @@ export function generateReservationICS(
 ): string {
   const startDateTime = DateTime.fromFormat(`${date}T${startTime}`, 'yyyy-MM-ddTHH:mm', { zone: timezone });
   const endDateTime = DateTime.fromFormat(`${date}T${endTime}`, 'yyyy-MM-ddTHH:mm', { zone: timezone });
-  
+
   const event: ICSEvent = {
     uid: `reservation-${Date.now()}@queueless.local`,
     startTime: startDateTime,
@@ -148,6 +148,6 @@ export function generateReservationICS(
       { minutes: 60, method: 'DISPLAY' }     // 1h przed
     ]
   };
-  
+
   return generateICS(event);
 }
