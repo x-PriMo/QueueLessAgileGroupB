@@ -40,8 +40,9 @@ const registerSchema = z.object({
   password: z.string()
     .min(8, 'Hasło musi mieć co najmniej 8 znaków')
     .max(128, 'Hasło jest zbyt długie')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 
-      'Hasło musi zawierać co najmniej jedną małą literę, jedną wielką literę i jedną cyfrę')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+      'Hasło musi zawierać co najmniej jedną małą literę, jedną wielką literę i jedną cyfrę'),
+  phoneNumber: z.string().optional()
 });
 
 const loginSchema = z.object({
@@ -72,7 +73,7 @@ router.post('/register', async (req: Request, res: Response) => {
       });
     }
 
-    const { email, password } = validationResult.data;
+    const { email, password, phoneNumber } = validationResult.data;
 
     // Check if user already exists
     const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
@@ -88,9 +89,9 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Create user
     const result = db.prepare(`
-      INSERT INTO users (email, passwordHash, role)
-      VALUES (?, ?, 'USER')
-    `).run(email, hashedPassword);
+      INSERT INTO users (email, passwordHash, role, phoneNumber)
+      VALUES (?, ?, 'USER', ?)
+    `).run(email, hashedPassword, phoneNumber || null);
 
     res.status(201).json({
       id: result.lastInsertRowid,
@@ -122,10 +123,10 @@ router.post('/login', loginRateLimit, async (req: Request, res: Response) => {
 
     // Find user by email
     const user = db.prepare(`
-      SELECT id, email, passwordHash, role
+      SELECT id, email, passwordHash, role, phoneNumber
       FROM users 
       WHERE email = ?
-    `).get(email) as { id: number; email: string; passwordHash: string; role: string } | undefined;
+    `).get(email) as { id: number; email: string; passwordHash: string; role: string; phoneNumber?: string } | undefined;
 
     if (!user) {
       return res.status(401).json({
@@ -148,7 +149,7 @@ router.post('/login', loginRateLimit, async (req: Request, res: Response) => {
 
     // Compute effective role for UI (OWNER/WORKER when applicable)
     const effectiveRole = computeEffectiveRole(user.id, user.role);
-    const userWithoutPassword = { id: user.id, email: user.email, role: effectiveRole };
+    const userWithoutPassword = { id: user.id, email: user.email, role: effectiveRole, phoneNumber: user.phoneNumber };
     res.json({
       user: userWithoutPassword,
       message: 'Zalogowano pomyślnie'
@@ -172,7 +173,7 @@ router.post('/logout', (req: Request, res: Response) => {
           error: 'Błąd podczas wylogowywania'
         });
       }
-      
+
       res.clearCookie('connect.sid');
       res.json({
         ok: true,
@@ -195,17 +196,17 @@ router.get('/me', (req: Request, res: Response) => {
 
   try {
     const userRow = db.prepare(`
-      SELECT id, email, role
+      SELECT id, email, role, phoneNumber
       FROM users 
       WHERE id = ?
-    `).get(sessionUser.id) as { id: number; email: string; role: string } | undefined;
+    `).get(sessionUser.id) as { id: number; email: string; role: string; phoneNumber?: string } | undefined;
 
     if (!userRow) {
       return res.json({ user: null });
     }
 
     const effectiveRole = computeEffectiveRole(userRow.id, userRow.role);
-    res.json({ user: { id: userRow.id, email: userRow.email, role: effectiveRole } });
+    res.json({ user: { id: userRow.id, email: userRow.email, role: effectiveRole, phoneNumber: userRow.phoneNumber } });
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({
