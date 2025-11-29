@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, API_URL } from '../lib/api';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom'; 
 import OwnerScheduleManager from '../components/OwnerScheduleManager';
 
 interface Company {
