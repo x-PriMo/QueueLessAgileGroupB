@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response } from 'express';
 import db from '../lib/db';
 import { z } from 'zod';
 import { authGuard, memberGuard, roleGuard } from '../middleware/auth';
@@ -91,7 +91,7 @@ const createCompanySchema = z.object({
   timezone: z.string().default('Europe/Warsaw'),
 });
 
-router.post('/', authGuard, roleGuard('PLATFORM_ADMIN'), (req: any, res: any) => {
+router.post('/', authGuard, roleGuard('PLATFORM_ADMIN'), (req: Request, res: Response) => {
   const parsed = createCompanySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid input' });
   const { name, timezone } = parsed.data;
@@ -101,7 +101,7 @@ router.post('/', authGuard, roleGuard('PLATFORM_ADMIN'), (req: any, res: any) =>
   res.json({ id: info.lastInsertRowid });
 });
 
-router.get('/:companyId', (req: any, res: any) => {
+router.get('/:companyId', (req: Request, res: Response) => {
   const companyId = Number(req.params.companyId);
   const company = db
     .prepare(`
@@ -158,15 +158,61 @@ router.get('/:companyId/workers', (req: Request, res: Response) => {
   const companyId = Number(req.params.companyId);
   const rows = db
     .prepare(`
-      SELECT u.id, u.email, cm.role
+      SELECT u.id, u.email, cm.role, u.canServe, u.isTrainee
       FROM company_members cm
       JOIN users u ON u.id = cm.userId
-      WHERE cm.companyId = ? AND cm.role = 'WORKER'
+      WHERE cm.companyId = ? AND cm.role IN ('WORKER', 'OWNER')
       ORDER BY u.email
     `)
-    .all(companyId) as Array<{ id: number; email: string; role: 'WORKER' | 'OWNER' }>;
-  res.json({ workers: rows });
+    .all(companyId) as Array<{ id: number; email: string; role: 'WORKER' | 'OWNER'; canServe: number; isTrainee: number }>;
+
+  const workers = rows.map(r => ({
+    ...r,
+    canServe: !!r.canServe,
+    isTrainee: !!r.isTrainee
+  }));
+
+  res.json({ workers });
 });
+
+// Usuń pracownika z firmy (tylko OWNER)
+router.delete(
+  '/:companyId/workers/:workerId',
+  authGuard,
+  memberGuard('companyId'),
+  roleGuard('OWNER'),
+  (req: Request, res: Response) => {
+    const companyId = Number(req.params.companyId);
+    const workerId = Number(req.params.workerId);
+
+    // Sprawdź czy pracownik należy do tej firmy i jest WORKERem (nie można usunąć OWNERa tą drogą)
+    const member = db.prepare(
+      "SELECT role FROM company_members WHERE companyId = ? AND userId = ?"
+    ).get(companyId, workerId) as { role: string } | undefined;
+
+    if (!member) {
+      return res.status(404).json({ error: 'Pracownik nie znaleziony w tej firmie' });
+    }
+
+    if (member.role === 'OWNER') {
+      return res.status(400).json({ error: 'Nie można usunąć właściciela' });
+    }
+
+    try {
+      // Usuń z company_members
+      db.prepare('DELETE FROM company_members WHERE companyId = ? AND userId = ?').run(companyId, workerId);
+
+      // Opcjonalnie: Usuń przyszłe zmiany i rezerwacje tego pracownika w tej firmie?
+      // Na razie zostawiamy - rezerwacje będą sierotami lub trzeba je obsłużyć.
+      // W MVP wystarczy usunięcie dostępu.
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Błąd podczas usuwania pracownika:', error);
+      res.status(500).json({ error: 'Błąd serwera' });
+    }
+  }
+);
 
 // Aktualizacja statusu pracownika (canServe, isTrainee) — tylko OWNER
 router.put(
@@ -240,11 +286,21 @@ router.post(
 
     // Dodaj członka firmy (unikalne wstawienie)
     try {
-      db
-        .prepare(
-          'INSERT OR IGNORE INTO company_members (companyId, userId, role) VALUES (?, ?, ?)'
-        )
-        .run(companyId, user.id, role);
+      db.transaction(() => {
+        db
+          .prepare(
+            'INSERT OR IGNORE INTO company_members (companyId, userId, role) VALUES (?, ?, ?)'
+          )
+          .run(companyId, user.id, role);
+
+        // Automatycznie przypisz wszystkie aktywne usługi firmy do nowego pracownika
+        const services = db.prepare('SELECT id FROM services WHERE companyId = ? AND isActive = 1').all(companyId) as { id: number }[];
+        const insertService = db.prepare('INSERT OR IGNORE INTO worker_services (workerId, serviceId, canPerform) VALUES (?, ?, 1)');
+
+        for (const service of services) {
+          insertService.run(user.id, service.id);
+        }
+      })();
     } catch (e) {
       console.error('Error adding company member:', e);
       return res.status(500).json({ error: 'Internal server error' });
@@ -458,7 +514,7 @@ router.put('/:companyId',
 );
 
 // Pobierz firmy właściciela
-router.get('/owner/companies', authGuard, roleGuard('OWNER'), (req: any, res: any) => {
+router.get('/owner/companies', authGuard, roleGuard('OWNER'), (req: Request, res: Response) => {
   const userId = req.session?.user?.id;
 
   if (!userId) {
