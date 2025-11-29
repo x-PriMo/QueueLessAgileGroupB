@@ -41,7 +41,7 @@ app.use(
 app.use(express.json({ limit: '8mb' }));
 
 // Middleware do logowania wszystkich żądań
-app.use((req: any, _res: any, next: any) => {
+app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
@@ -63,7 +63,7 @@ const staticDir = path.join(process.cwd(), '..', '..', 'Zajecia3');
 app.use('/static', express.static(staticDir));
 
 // Health check
-app.get('/health', (_req: any, res: any) => res.json({ ok: true }));
+app.get('/health', (_req: Request, res: Response) => res.json({ ok: true }));
 
 // Rate-limit dla loginu przeniesiony do routera /auth
 
