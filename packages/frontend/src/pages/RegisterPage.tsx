@@ -8,12 +8,14 @@ interface FormErrors {
   email?: string;
   password?: string;
   confirmPassword?: string;
+  phoneNumber?: string;
 }
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [message, setMessage] = useState('');
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,6 +33,10 @@ export default function RegisterPage() {
       newErrors.email = 'E-mail jest wymagany';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = 'Nieprawidłowy format e-mail';
+    }
+
+    if (phoneNumber && !/^\+?[0-9\s-]{9,}$/.test(phoneNumber)) {
+      newErrors.phoneNumber = 'Nieprawidłowy format numeru telefonu';
     }
 
     if (!password) {
@@ -53,7 +59,7 @@ export default function RegisterPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -70,7 +76,7 @@ export default function RegisterPage() {
         '/auth/register',
         {
           method: 'POST',
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, phoneNumber }),
         }
       );
       // Po udanej rejestracji — automatyczne zalogowanie użytkownika
@@ -157,6 +163,38 @@ export default function RegisterPage() {
               )}
             </div>
 
+            {/* Phone Number Field */}
+            <div>
+              <label htmlFor="phoneNumber" className="block text-sm font-semibold text-gray-700 mb-2">
+                Numer telefonu (opcjonalnie)
+              </label>
+              <div className="relative">
+                <input
+                  id="phoneNumber"
+                  type="tel"
+                  autoComplete="tel"
+                  className={`${errors.phoneNumber ? 'input-brand-error' : 'input-brand'} pl-12`}
+                  placeholder="+48 123 456 789"
+                  value={phoneNumber}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    if (errors.phoneNumber) {
+                      setErrors(prev => ({ ...prev, phoneNumber: undefined }));
+                    }
+                  }}
+                  aria-invalid={!!errors.phoneNumber}
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+              </div>
+              {errors.phoneNumber && (
+                <p className="mt-2 text-sm text-red-600">{errors.phoneNumber}</p>
+              )}
+            </div>
+
             {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -200,13 +238,13 @@ export default function RegisterPage() {
                   )}
                 </button>
               </div>
-              
+
               {/* Password Strength Indicator */}
               {password && (
                 <div className="mt-2">
                   <div className="flex items-center space-x-2">
                     <div className="flex-1 bg-gray-200 rounded-full h-2">
-                      <div 
+                      <div
                         className={`h-2 rounded-full transition-all duration-300 ${strengthColors[passwordStrength - 1] || 'bg-gray-200'}`}
                         style={{ width: `${(passwordStrength / 5) * 100}%` }}
                       ></div>
@@ -217,7 +255,7 @@ export default function RegisterPage() {
                   </div>
                 </div>
               )}
-              
+
               {errors.password && (
                 <p className="mt-2 text-sm text-red-600">{errors.password}</p>
               )}
