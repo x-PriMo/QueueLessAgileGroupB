@@ -14,3 +14,4 @@ CREATE TABLE IF NOT EXISTS company_requests (
 CREATE INDEX IF NOT EXISTS idx_company_requests_status ON company_requests(status);
 CREATE INDEX IF NOT EXISTS idx_company_requests_user ON company_requests(userId);
 
+
