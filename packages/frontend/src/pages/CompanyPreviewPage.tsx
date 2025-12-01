@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, API_URL } from '../lib/api';
+import { api, API_URL, Service } from '../lib/api';
 import ServiceSelector from '../components/ServiceSelector';
 
 interface Company {
@@ -12,13 +12,7 @@ interface Company {
   description?: string;
 }
 
-interface Service {
-  id: number;
-  name: string;
-  durationMinutes: number;
-  price: number;
-  description?: string;
-}
+
 
 export default function CompanyPreviewPage() {
   const { companyId } = useParams();
@@ -101,7 +95,7 @@ export default function CompanyPreviewPage() {
           {/* Service selection */}
           <div className="mt-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Zarezerwuj wizytę</h2>
-            
+
             {services.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500">Ta firma nie ma jeszcze żadnych usług</p>
@@ -119,7 +113,7 @@ export default function CompanyPreviewPage() {
                     className="input-brand w-full max-w-xs"
                   />
                 </div>
-                
+
                 {selectedDate && (
                   <ServiceSelector
                     companyId={idNum}
@@ -133,12 +127,12 @@ export default function CompanyPreviewPage() {
                 )}
               </>
             )}
-            
+
             {selectedSlot && selectedService && (
               <div className="mt-6 flex space-x-4">
                 <button
-                  onClick={() => navigate('/reserve', { 
-                    state: { 
+                  onClick={() => navigate('/reserve', {
+                    state: {
                       companyId: idNum,
                       serviceId: selectedService.id,
                       date: selectedDate,
