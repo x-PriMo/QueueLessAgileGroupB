@@ -53,7 +53,7 @@ export default function ServiceManager({ companyId }: ServiceManagerProps) {
       if (editingService) {
         await servicesAPI.updateService(companyId, editingService.id, formData);
       } else {
-        await servicesAPI.createService(companyId, formData);
+        await servicesAPI.createService(companyId, { ...formData, companyId });
       }
       await loadServices();
       resetForm();
@@ -77,7 +77,7 @@ export default function ServiceManager({ companyId }: ServiceManagerProps) {
 
   const handleDelete = async (serviceId: number) => {
     if (!confirm('Czy na pewno chcesz usunąć tę usługę?')) return;
-    
+
     try {
       await servicesAPI.deleteService(companyId, serviceId);
       await loadServices();
@@ -234,9 +234,8 @@ export default function ServiceManager({ companyId }: ServiceManagerProps) {
                     <p className="text-sm text-gray-600 mt-2">{service.description}</p>
                   )}
                   <div className="flex items-center mt-2">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      service.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${service.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
                       {service.isActive ? 'Aktywna' : 'Nieaktywna'}
                     </span>
                   </div>
