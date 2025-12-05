@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DateTime } from 'luxon';
 import { api } from '../lib/api';
+import BreaksManager from './BreaksManager';
 
 interface Worker {
     id: number;
@@ -35,6 +36,9 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
         startTime: string;
         endTime: string;
     } | null>(null);
+    const [showBreaksManager, setShowBreaksManager] = useState(false);
+    const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+    const [breaks, setBreaks] = useState<{ [shiftId: number]: Array<{ id: number; startTime: string; endTime: string }> }>({});
 
     useEffect(() => {
         loadData();
@@ -144,6 +148,12 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
         }
     };
 
+    const handleManageBreaks = (e: React.MouseEvent, shift: Shift) => {
+        e.stopPropagation();
+        setSelectedShift(shift);
+        setShowBreaksManager(true);
+    };
+
     const weekDays = getDaysInWeek();
 
     if (loading) return <div className="p-8 text-center">Ładowanie grafiku...</div>;
@@ -250,6 +260,16 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
                                                             {shift.startTime} - {shift.endTime}
                                                         </div>
                                                         <button
+                                                            onClick={(e) => handleManageBreaks(e, shift)}
+                                                            className="mt-1 text-purple-600 hover:text-purple-800 text-xxs flex items-center justify-center gap-1 w-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            title="Manage breaks"
+                                                        >
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            Breaks
+                                                        </button>
+                                                        <button
                                                             onClick={(e) => handleDeleteShift(e, shift.id)}
                                                             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md hover:bg-red-600 transform scale-90 hover:scale-100"
                                                             title="Usuń zmianę"
@@ -258,6 +278,7 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
                                                         </button>
                                                     </div>
                                                 ))}
+
                                             </div>
                                         </td>
                                     );
@@ -357,6 +378,24 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
                     </div>
                 </div>
             )}
+
+            {/* Breaks Manager Modal */}
+            {showBreaksManager && selectedShift && (
+                <BreaksManager
+                    shiftId={selectedShift.id}
+                    shiftDate={selectedShift.date}
+                    shiftStart={selectedShift.startTime}
+                    shiftEnd={selectedShift.endTime}
+                    onClose={() => {
+                        setShowBreaksManager(false);
+                        setSelectedShift(null);
+                    }}
+                    onUpdate={() => {
+                        loadData(); // Reload shifts to reflect break changes
+                    }}
+                />
+            )}
         </div>
     );
 }
+
