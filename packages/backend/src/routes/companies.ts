@@ -51,40 +51,9 @@ router.get('/categories', (req: Request, res: Response) => {
 });
 
 // Firmy, których bieżący użytkownik jest właścicielem (OWNER)
-router.get('/owner/companies', authGuard, (req: Request, res: Response) => {
-  const userId = req.session?.user?.id;
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+// REMOVED - duplicate endpoint that was hardcoding autoAccept
+// Now using the correct endpoint at line ~540
 
-  const rows = db
-    .prepare(
-      `SELECT c.id, c.name, c.timezone,
-              m.category,
-              30 AS slotMinutes,
-              1 AS autoAccept
-       FROM companies c
-       JOIN company_members cm ON cm.companyId = c.id AND cm.userId = ? AND cm.role = 'OWNER'
-       LEFT JOIN company_meta m ON m.companyId = c.id
-       ORDER BY c.id`
-    )
-    .all(userId) as Array<{
-      id: number;
-      name: string;
-      timezone: string;
-      category?: string;
-      slotMinutes: number;
-      autoAccept: number;
-    }>;
-
-  const companies = rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    timezone: r.timezone,
-    category: r.category,
-    slotMinutes: r.slotMinutes,
-    autoAccept: !!r.autoAccept,
-  }));
-  res.json({ companies });
-});
 
 const createCompanySchema = z.object({
   name: z.string().min(2),
@@ -105,7 +74,8 @@ router.get('/:companyId', (req: Request, res: Response) => {
   const companyId = Number(req.params.companyId);
   const company = db
     .prepare(`
-      SELECT c.id, c.name, c.timezone, c.logoPath,
+      SELECT c.id, c.name, c.timezone, c.logoPath, c.address, c.phone, c.contactEmail, c.website,
+             c.slotMinutes, c.traineeExtraMinutes, c.autoAccept,
              m.category, m.description
       FROM companies c
       LEFT JOIN company_meta m ON m.companyId = c.id
@@ -116,12 +86,27 @@ router.get('/:companyId', (req: Request, res: Response) => {
       name: string;
       timezone: string;
       logoPath?: string;
+      address?: string;
+      phone?: string;
+      contactEmail?: string;
+      website?: string;
+      slotMinutes?: number;
+      traineeExtraMinutes?: number;
+      autoAccept?: number;
       category?: string;
       description?: string;
     } | undefined;
   if (!company) return res.status(404).json({ error: 'Not found' });
-  res.json({ company });
+
+  // Convert autoAccept from SQLite integer to boolean
+  const companyWithBoolean = {
+    ...company,
+    autoAccept: Boolean(company.autoAccept)
+  };
+
+  res.json({ company: companyWithBoolean });
 });
+
 
 // Lista kategorii (distinct) z liczbą firm
 router.get('/categories/list', (_req: Request, res: Response) => {
@@ -396,30 +381,38 @@ router.post('/:companyId/logo', authGuard, memberGuard('companyId'), roleGuard('
   }
 
   const ext = mimeType === 'image/png' ? '.png' : '.jpg';
-  const path = `packages/backend/uploads/logos/${companyId}-${Date.now()}-${safeName}${ext}`;
-  const dir = 'packages/backend/uploads/logos';
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path, buf);
+  const uploadsDir = 'uploads/logos';
+  const fullDir = `packages/backend/${uploadsDir}`;
 
-  const finalName = path.split('/').pop() as string;
-  const publicUrl = `/uploads/logos/${finalName}`;
+  if (!fs.existsSync(fullDir)) {
+    fs.mkdirSync(fullDir, { recursive: true });
+  }
+
+  const filename = `${companyId}-${Date.now()}-${safeName}${ext}`;
+  const fullPath = `${fullDir}/${filename}`;
+  fs.writeFileSync(fullPath, buf);
+
+  const publicUrl = `/${uploadsDir}/${filename}`;
   db.prepare('UPDATE companies SET logoPath = ? WHERE id = ?').run(publicUrl, companyId);
   res.json({ logoUrl: publicUrl });
 });
+
 
 // Aktualizacja danych firmy
 const updateCompanySchema = z.object({
   name: z.string().min(2, 'Nazwa firmy jest wymagana').optional(),
   description: z.string().max(2000, 'Opis nie może przekraczać 2000 znaków').optional(),
   address: z.string().max(500, 'Adres nie może przekraczać 500 znaków').optional(),
-  phone: z.string().regex(/^\+?[\d\s\-\(\)]{6,20}$/, 'Nieprawidłowy format telefonu').optional(),
-  contactEmail: z.string().email('Nieprawidłowy format email').optional(),
+  phone: z.string().regex(/^\+?[\d\s\-\(\)]{6,20}$/, 'Nieprawidłowy format telefonu').optional().or(z.literal('')),
+  contactEmail: z.string().email('Nieprawidłowy format email').optional().or(z.literal('')),
   website: z.string().url('Nieprawidłowy format URL').optional().or(z.literal('')),
   category: z.string().optional(),
   slotMinutes: z.number().min(5).max(300).optional(),
   traineeExtraMinutes: z.number().min(0).max(120).optional(),
   autoAccept: z.boolean().optional(),
+  workersCanAccept: z.boolean().optional(),
 });
+
 
 router.put('/:companyId',
   authGuard,
@@ -473,6 +466,10 @@ router.put('/:companyId',
       fields.push('autoAccept = ?');
       values.push(updates.autoAccept ? 1 : 0);
     }
+    if (updates.workersCanAccept !== undefined) {
+      fields.push('workersCanAccept = ?');
+      values.push(updates.workersCanAccept ? 1 : 0);
+    }
 
     // Aktualizacja company_meta
     if (updates.description !== undefined || updates.category !== undefined) {
@@ -502,7 +499,7 @@ router.put('/:companyId',
     // Pobierz zaktualizowane dane
     const updatedCompany = db.prepare(`
       SELECT c.id, c.name, c.timezone, c.logoPath, c.address, c.phone, c.contactEmail, c.website,
-             c.slotMinutes, c.traineeExtraMinutes, c.autoAccept,
+             c.slotMinutes, c.traineeExtraMinutes, c.autoAccept, c.workersCanAccept,
              m.category, m.description
       FROM companies c
       LEFT JOIN company_meta m ON m.companyId = c.id
@@ -514,7 +511,7 @@ router.put('/:companyId',
 );
 
 // Pobierz firmy właściciela
-router.get('/owner/companies', authGuard, roleGuard('OWNER'), (req: Request, res: Response) => {
+router.get('/owner/companies', authGuard, (req: Request, res: Response) => {
   const userId = req.session?.user?.id;
 
   if (!userId) {
@@ -522,7 +519,7 @@ router.get('/owner/companies', authGuard, roleGuard('OWNER'), (req: Request, res
   }
 
   const companies = db.prepare(`
-    SELECT c.id, c.name, c.timezone, c.logoPath, c.slotMinutes, c.traineeExtraMinutes, c.autoAccept,
+    SELECT c.id, c.name, c.timezone, c.logoPath, c.slotMinutes, c.traineeExtraMinutes, c.autoAccept, c.workersCanAccept,
            m.category, m.description, c.address, c.phone, c.contactEmail, c.website
     FROM companies c
     JOIN company_members cm ON cm.companyId = c.id
