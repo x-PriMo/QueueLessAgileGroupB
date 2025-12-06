@@ -21,4 +21,3 @@ try {
 
 const rootEl = document.getElementById('root')!;
 createRoot(rootEl).render(<App />);
-
