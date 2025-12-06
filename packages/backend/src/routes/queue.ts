@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import db from '../lib/db';
-import { authGuard, memberGuard } from '../middleware/auth';
+import { authGuard, memberGuard, roleGuard } from '../middleware/auth';
 
 const router = Router();
 
 router.use(authGuard);
 
 // Pobierz statystyki kolejki dla firmy (używane przez OwnerDashboard)
-router.get('/:companyId', memberGuard('companyId'), (req: any, res: any) => {
+router.get('/:companyId', authGuard, memberGuard('companyId'), roleGuard('OWNER'), (req: any, res: any) => {
     const companyId = Number(req.params.companyId);
     const today = new Date().toISOString().split('T')[0];
 
