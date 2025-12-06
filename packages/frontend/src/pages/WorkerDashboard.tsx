@@ -7,7 +7,7 @@ interface QueueItem {
   customerEmail: string;
   startTime: string;
   estimatedEndTime: string;
-  status: 'WAITING' | 'IN_SERVICE' | 'DONE';
+  status: 'WAITING' | 'IN_SERVICE' | 'DONE' | 'PENDING';
   isTrainee?: boolean;
 }
 
@@ -25,6 +25,7 @@ interface Company {
   name: string;
   slotMinutes: number;
   traineeExtraMinutes: number;
+  workersCanAccept?: boolean;
 }
 
 export default function WorkerDashboard() {
@@ -34,6 +35,7 @@ export default function WorkerDashboard() {
   const [company, setCompany] = useState<Company | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     let mounted = true;
@@ -50,20 +52,29 @@ export default function WorkerDashboard() {
       clearInterval(dataTimer);
       clearInterval(clockTimer);
     };
-  }, []);
+  }, [selectedDate]); // Reload when date changes
 
   const loadWorkerData = async () => {
     try {
-      // Endpoint do pobrania danych pracownika - może wymagać implementacji
-      const [queueResponse, shiftResponse, companyResponse] = await Promise.all([
-        api<{ queue: QueueItem[] }>('/worker/queue'),
-        api<{ shift: Shift | null }>('/worker/shift/today'),
-        api<{ company: Company }>('/worker/company'),
-      ]);
+      // Fetch company first to ensure we have it
+      try {
+        const companyRes = await api<{ company: Company }>('/worker/company');
+        setCompany(companyRes.company);
+      } catch (e) {
+        console.warn('Could not fetch company details', e);
+      }
 
+      // Fetch queue for selected date
+      const queueResponse = await api<{ queue: QueueItem[] }>(`/worker/queue?date=${selectedDate}`);
       setQueue(queueResponse.queue);
+
+      // Fetch shift for today (or selected date if we want to show shift for that day)
+      // Currently /worker/shift/today only returns TODAY's shift. 
+      // TODO: Update backend to support date param for shift if needed. 
+      // For now, we keep today's shift info as "Status pracy" usually refers to *now*.
+      const shiftResponse = await api<{ shift: Shift | null }>('/worker/shift/today');
       setTodayShift(shiftResponse.shift);
-      setCompany(companyResponse.company);
+
     } catch (error) {
       console.error('Błąd podczas ładowania danych pracownika:', error);
     } finally {
@@ -73,13 +84,13 @@ export default function WorkerDashboard() {
 
   const updateQueueItemStatus = async (itemId: number, status: 'WAITING' | 'IN_SERVICE' | 'DONE') => {
     try {
-      await api(`/queue/${itemId}/status`, {
+      await api(`/worker/reservations/${itemId}/status`, {
         method: 'POST',
         body: JSON.stringify({ status }),
       });
-      
-      setQueue(prevQueue => 
-        prevQueue.map(item => 
+
+      setQueue(prevQueue =>
+        prevQueue.map(item =>
           item.id === itemId ? { ...item, status } : item
         )
       );
@@ -90,6 +101,8 @@ export default function WorkerDashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'PENDING':
+        return 'bg-orange-100 text-orange-800';
       case 'WAITING':
         return 'bg-yellow-100 text-yellow-800';
       case 'IN_SERVICE':
@@ -103,6 +116,8 @@ export default function WorkerDashboard() {
 
   const getStatusText = (status: string) => {
     switch (status) {
+      case 'PENDING':
+        return 'Do zatwierdzenia';
       case 'WAITING':
         return 'Oczekuje';
       case 'IN_SERVICE':
@@ -120,30 +135,30 @@ export default function WorkerDashboard() {
 
   const isCurrentlyWorking = () => {
     if (!todayShift) return false;
-    
+
     const now = currentTime.toTimeString().slice(0, 5);
     const isInWorkHours = now >= todayShift.startTime && now <= todayShift.endTime;
-    
+
     if (todayShift.breakStart && todayShift.breakEnd) {
       const isInBreak = now >= todayShift.breakStart && now <= todayShift.breakEnd;
       return isInWorkHours && !isInBreak;
     }
-    
+
     return isInWorkHours;
   };
 
   const getNextAction = () => {
     const waitingItems = queue.filter(item => item.status === 'WAITING');
     const inServiceItems = queue.filter(item => item.status === 'IN_SERVICE');
-    
+
     if (inServiceItems.length > 0) {
       return `Zakończ obsługę klienta (${inServiceItems[0].customerEmail.replace(/(.{3}).*(@.*)/, '$1***$2')})`;
     }
-    
+
     if (waitingItems.length > 0) {
       return `Rozpocznij obsługę następnego klienta`;
     }
-    
+
     return 'Brak klientów w kolejce';
   };
 
@@ -163,13 +178,27 @@ export default function WorkerDashboard() {
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="px-4 py-6 sm:px-0">
-          <div className="border-b border-gray-200 pb-5">
-            <h1 className="text-3xl font-bold leading-6 text-gray-900">
-              Panel pracownika
-            </h1>
-            <p className="mt-2 max-w-4xl text-sm text-gray-500">
-              Witaj, {user?.email}! {company && `Pracujesz w: ${company.name}`}
-            </p>
+          <div className="border-b border-gray-200 pb-5 flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold leading-6 text-gray-900">
+                Panel pracownika
+              </h1>
+              <p className="mt-2 max-w-4xl text-sm text-gray-500">
+                Witaj, {user?.email}! {company && `Pracujesz w: ${company.name}`}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="date-picker" className="block text-sm font-medium text-gray-700 mr-2">
+                Wybierz dzień:
+              </label>
+              <input
+                type="date"
+                id="date-picker"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              />
+            </div>
           </div>
         </div>
 
@@ -230,9 +259,9 @@ export default function WorkerDashboard() {
           <div className="bg-white shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                Kolejka dnia ({queue.length} klientów)
+                Kolejka dnia ({queue.length} klientów) - {selectedDate}
               </h3>
-              
+
               {queue.length === 0 ? (
                 <div className="text-center py-8">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,6 +304,22 @@ export default function WorkerDashboard() {
                             {getStatusText(item.status)}
                           </span>
                           <div className="flex space-x-2">
+                            {/* Allow starting PENDING reservations ONLY if workersCanAccept is true */}
+                            {item.status === 'PENDING' && (
+                              company?.workersCanAccept ? (
+                                <button
+                                  onClick={() => updateQueueItemStatus(item.id, 'IN_SERVICE')}
+                                  className="btn-brand-secondary text-sm"
+                                >
+                                  Rozpocznij
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-400 italic self-center">
+                                  Wymagana akceptacja właściciela
+                                </span>
+                              )
+                            )}
+
                             {item.status === 'WAITING' && (
                               <button
                                 onClick={() => updateQueueItemStatus(item.id, 'IN_SERVICE')}
