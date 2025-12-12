@@ -18,6 +18,7 @@ interface Shift {
     endTime: string;
     workerId: number;
     workerEmail: string;
+    breaks?: Array<{ id: number; startTime: string; endTime: string }>;
 }
 
 interface WeeklyScheduleProps {
@@ -258,6 +259,14 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
                                                         <div className="font-semibold text-center flex items-center justify-center gap-1">
                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                             {shift.startTime} - {shift.endTime}
+                                                            {shift.breaks && shift.breaks.length > 0 && (
+                                                                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xxs bg-purple-100 text-purple-700" title={`${shift.breaks.length} przerw(a/y)`}>
+                                                                    <svg className="w-2.5 h-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                    </svg>
+                                                                    {shift.breaks.length}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <button
                                                             onClick={(e) => handleManageBreaks(e, shift)}
