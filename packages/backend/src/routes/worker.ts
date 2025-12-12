@@ -173,7 +173,7 @@ router.get('/company', (req: any, res: any) => {
     const userId = req.session.user?.id;
 
     const company = db.prepare(`
-    SELECT c.id, c.name, c.slotMinutes, c.traineeExtraMinutes, c.workersCanAccept
+    SELECT c.id, c.name, c.slotMinutes, c.traineeExtraMinutes, c.workersCanAccept, cm.role as userRole
     FROM companies c
     JOIN company_members cm ON cm.companyId = c.id
     WHERE cm.userId = ? AND (cm.role = 'WORKER' OR cm.role = 'OWNER')
@@ -191,7 +191,7 @@ router.get('/company', (req: any, res: any) => {
 // GET /worker/breaks?shiftId=:id - Get all breaks for a shift
 router.get('/breaks', authGuard, (req: Request, res: Response) => {
     const { shiftId } = req.query;
-    const userId = req.session?.userId;
+    const userId = req.session?.user?.id;
 
     if (!shiftId) {
         return res.status(400).json({ error: 'shiftId is required' });
@@ -224,7 +224,7 @@ router.get('/breaks', authGuard, (req: Request, res: Response) => {
 // POST /worker/breaks - Create a new break
 router.post('/breaks', authGuard, (req: Request, res: Response) => {
     const { shiftId, startTime, endTime } = req.body;
-    const userId = req.session?.userId;
+    const userId = req.session?.user?.id;
 
     if (!shiftId || !startTime || !endTime) {
         return res.status(400).json({ error: 'shiftId, startTime, and endTime are required' });
@@ -310,7 +310,7 @@ router.post('/breaks', authGuard, (req: Request, res: Response) => {
 router.put('/breaks/:id', authGuard, (req: Request, res: Response) => {
     const breakId = Number(req.params.id);
     const { startTime, endTime } = req.body;
-    const userId = req.session?.userId;
+    const userId = req.session?.user?.id;
 
     if (!startTime || !endTime) {
         return res.status(400).json({ error: 'startTime and endTime are required' });
@@ -380,7 +380,7 @@ router.put('/breaks/:id', authGuard, (req: Request, res: Response) => {
 // DELETE /worker/breaks/:id - Delete a break
 router.delete('/breaks/:id', authGuard, (req: Request, res: Response) => {
     const breakId = Number(req.params.id);
-    const userId = req.session?.userId;
+    const userId = req.session?.user?.id;
 
     // Get the break and verify access
     const breakRecord = db.prepare(`
