@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+super import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 
 interface Break {
@@ -22,7 +22,7 @@ export default function BreaksManager({ shiftId, shiftDate, shiftStart, shiftEnd
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [newBreakStart, setNewBreakStart] = useState('');
-    const [newBreakEnd, setNewBreakEnd] = useState('');
+    const [newBreakDuration, setNewBreakDuration] = useState(15);
     const [editingBreak, setEditingBreak] = useState<number | null>(null);
 
     useEffect(() => {
@@ -46,34 +46,55 @@ export default function BreaksManager({ shiftId, shiftDate, shiftStart, shiftEnd
         e.preventDefault();
         setError('');
 
+        if (!newBreakStart) {
+            setError('Proszę wybrać godzinę rozpoczęcia');
+            return;
+        }
+
+        // Calculate end time from start + duration
+        const [hours, minutes] = newBreakStart.split(':').map(Number);
+        const startMinutes = hours * 60 + minutes;
+        const endMinutes = startMinutes + newBreakDuration;
+        const endHours = Math.floor(endMinutes / 60);
+        const endMins = endMinutes % 60;
+        const calculatedEndTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+
         try {
             await api('/worker/breaks', {
                 method: 'POST',
                 body: JSON.stringify({
                     shiftId,
                     startTime: newBreakStart,
-                    endTime: newBreakEnd
+                    endTime: calculatedEndTime
                 })
             });
 
             setNewBreakStart('');
-            setNewBreakEnd('');
+            setNewBreakDuration(15);
             await loadBreaks();
             onUpdate();
         } catch (err: any) {
-            setError(err.message || 'Failed to add break');
+            setError(err.message || 'Nie udało się dodać przerwy');
         }
     };
 
     const handleDeleteBreak = async (breakId: number) => {
-        if (!confirm('Are you sure you want to delete this break?')) return;
+        console.log('Delete break clicked:', breakId);
 
+        if (!confirm('Czy na pewno chcesz usunąć tę przerwę?')) {
+            console.log('User cancelled delete');
+            return;
+        }
+
+        console.log('Sending DELETE request...');
         try {
             await api(`/worker/breaks/${breakId}`, { method: 'DELETE' });
+            console.log('Delete successful, reloading breaks');
             await loadBreaks();
             onUpdate();
         } catch (err: any) {
-            setError(err.message || 'Failed to delete break');
+            console.error('Delete break error:', err);
+            setError(err.message || 'Nie udało się usunąć przerwy');
         }
     };
 
@@ -126,16 +147,22 @@ export default function BreaksManager({ shiftId, shiftDate, shiftStart, shiftEnd
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Czas trwania: <span className="text-purple-600 font-semibold">{newBreakDuration} min</span>
+                                </label>
                                 <input
-                                    type="time"
-                                    value={newBreakEnd}
-                                    onChange={e => setNewBreakEnd(e.target.value)}
-                                    min={newBreakStart || shiftStart}
-                                    max={shiftEnd}
-                                    required
-                                    className="input-brand w-full"
+                                    type="range"
+                                    min="5"
+                                    max="60"
+                                    step="5"
+                                    value={newBreakDuration}
+                                    onChange={e => setNewBreakDuration(Number(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
                                 />
+                                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                    <span>5 min</span>
+                                    <span>60 min</span>
+                                </div>
                             </div>
                             <button
                                 type="submit"
