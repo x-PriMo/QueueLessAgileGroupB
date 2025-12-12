@@ -16,6 +16,7 @@ interface Company {
   traineeExtraMinutes?: number;
   autoAccept?: boolean;
   workersCanAccept?: boolean;
+  defaultBreaks?: Array<{ startTime: string; endTime: string }>;
 }
 
 export default function OwnerCompanySettings() {
@@ -39,6 +40,7 @@ export default function OwnerCompanySettings() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [defaultBreaks, setDefaultBreaks] = useState<Array<{ startTime: string; endTime: string }>>([]);
 
   useEffect(() => {
     loadData();
@@ -50,7 +52,11 @@ export default function OwnerCompanySettings() {
       // Pobierz pierwszą firmę właściciela
       const companiesRes = await api<{ companies: Company[] }>('/companies/owner/companies');
       if (companiesRes.companies.length > 0) {
-        const companyData = companiesRes.companies[0];
+        const companyId = companiesRes.companies[0].id;
+
+        // Fetch full company details including defaultBreaks
+        const companyDetailsRes = await api<{ company: Company }>(`/companies/${companyId}`);
+        const companyData = companyDetailsRes.company;
         setCompany(companyData);
 
         // Parse address
@@ -71,6 +77,9 @@ export default function OwnerCompanySettings() {
           autoAccept: Boolean(companyData.autoAccept),
           workersCanAccept: Boolean(companyData.workersCanAccept)
         });
+
+        // Load default breaks
+        setDefaultBreaks(companyData.defaultBreaks || []);
       }
 
       // Pobierz kategorie
@@ -178,6 +187,63 @@ export default function OwnerCompanySettings() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Wystąpił błąd';
       setError(msg);
+    }
+  };
+
+  // Default breaks handlers
+  const handleAddBreak = () => {
+    setDefaultBreaks(prev => [...prev, { startTime: '09:00', endTime: '09:15' }]);
+  };
+
+  const handleRemoveBreak = (index: number) => {
+    setDefaultBreaks(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleBreakStartChange = (index: number, startTime: string) => {
+    setDefaultBreaks(prev => prev.map((brk, i) => {
+      if (i !== index) return brk;
+      // Keep duration the same, recalculate endTime
+      const [startH, startM] = startTime.split(':').map(Number);
+      const [endH, endM] = brk.endTime.split(':').map(Number);
+      const durationMins = (endH * 60 + endM) - (parseInt(brk.startTime.split(':')[0]) * 60 + parseInt(brk.startTime.split(':')[1]));
+      const newEndMins = startH * 60 + startM + durationMins;
+      const newEndH = Math.floor(newEndMins / 60);
+      const newEndM = newEndMins % 60;
+      return { startTime, endTime: `${String(newEndH).padStart(2, '0')}:${String(newEndM).padStart(2, '0')}` };
+    }));
+  };
+
+  const handleBreakDurationChange = (index: number, durationMins: number) => {
+    setDefaultBreaks(prev => prev.map((brk, i) => {
+      if (i !== index) return brk;
+      const [hours, mins] = brk.startTime.split(':').map(Number);
+      const startMins = hours * 60 + mins;
+      const endMins = startMins + durationMins;
+      const endH = Math.floor(endMins / 60);
+      const endM = endMins % 60;
+      return { ...brk, endTime: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}` };
+    }));
+  };
+
+  const handleSaveDefaultBreaks = async () => {
+    if (!company) return;
+
+    try {
+      setIsLoading(true);
+      setError('');
+      setMessage('');
+
+      await api(`/companies/${company.id}/default-breaks`, {
+        method: 'PATCH',
+        body: JSON.stringify({ defaultBreaks }),
+      });
+
+      setMessage('Domyślne przerwy zaktualizowane pomyślnie');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Wystąpił błąd podczas zapisywania';
+      setError(msg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -503,6 +569,103 @@ export default function OwnerCompanySettings() {
               `} />
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Default Breaks Section */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2 mb-2">
+              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Domyślne przerwy
+            </h2>
+            <p className="text-sm text-gray-600 mb-3">
+              Te przerwy będą automatycznie dodawane do nowych zmian pracowników.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {defaultBreaks.map((breakItem, index) => (
+            <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="flex-1 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
+                  <input
+                    type="time"
+                    value={breakItem.startTime}
+                    onChange={(e) => handleBreakStartChange(index, e.target.value)}
+                    className="input-brand w-full text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Czas trwania: <span className="text-purple-600 font-semibold">
+                      {(() => {
+                        const [startH, startM] = breakItem.startTime.split(':').map(Number);
+                        const [endH, endM] = breakItem.endTime.split(':').map(Number);
+                        return (endH * 60 + endM) - (startH * 60 + startM);
+                      })()} min
+                    </span>
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="60"
+                    step="5"
+                    value={(() => {
+                      const [startH, startM] = breakItem.startTime.split(':').map(Number);
+                      const [endH, endM] = breakItem.endTime.split(':').map(Number);
+                      return (endH * 60 + endM) - (startH * 60 + startM);
+                    })()}
+                    onChange={(e) => handleBreakDurationChange(index, Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>5 min</span>
+                    <span>60 min</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemoveBreak(index)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Usuń pręrwę"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          ))}
+
+          {defaultBreaks.length === 0 && (
+            <p className="text-sm text-gray-500 text-center py-4">
+              Brak domyślnych przerw. Dodaj pierwszą przerwę poniżej.
+            </p>
+          )}
+        </div>
+
+        <div className="flex gap-3 mt-4">
+          <button
+            type="button"
+            onClick={handleAddBreak}
+            className="flex-1 btn-brand-outline"
+          >
+            + Dodaj przerwę
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveDefaultBreaks}
+            disabled={isLoading}
+            className="flex-1 btn-brand disabled:opacity-50"
+          >
+            {isLoading ? 'Zapisywanie...' : 'Zapisz przerwy'}
+          </button>
         </div>
       </div>
 
