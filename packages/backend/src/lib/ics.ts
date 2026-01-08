@@ -30,7 +30,7 @@ function escapeICSText(text: string): string {
 }
 
 function formatDateTime(dt: any): string {
-  return dt.toFormat('yyyyMMddTHHmmss');
+  return dt.toUTC().toFormat('yyyyMMddTHHmmss') + 'Z';
 }
 
 function generateUID(): string {
