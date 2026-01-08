@@ -7,9 +7,33 @@ export async function getTransport(): Promise<Transporter> {
   if (transportCache) {
     return transportCache;
   }
-  
+
+  // Check if production SMTP settings are provided via environment variables
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpSecure = process.env.SMTP_SECURE === 'true';
+
+  if (smtpHost && smtpUser && smtpPass) {
+    // Use production SMTP
+    console.log('📧 Using production SMTP:', smtpHost);
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort ? parseInt(smtpPort) : 587,
+      secure: smtpSecure,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+    transportCache = transporter;
+    return transporter;
+  }
+
+  // Fall back to Ethereal test account
   try {
-    // W dev korzystamy z konta testowego Ethereal
+    console.log('📧 Using Ethereal test mode (no real emails will be sent)');
     const testAccount = await nodemailer.createTestAccount();
     const transporter = nodemailer.createTransport({
       host: 'smtp.ethereal.email',
@@ -62,15 +86,15 @@ export interface EmailSettings {
 
 export async function sendReservationConfirmationEmail(data: ReservationEmailData, settings?: EmailSettings) {
   const transporter = await getTransport();
-  
+
   const formattedDate = new Date(data.reservationDate).toLocaleDateString('pl-PL', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   });
-  
-  const googleMapsLink = data.companyAddress 
+
+  const googleMapsLink = data.companyAddress
     ? `https://maps.google.com/?q=${encodeURIComponent(data.companyAddress)}`
     : null;
 
@@ -213,7 +237,7 @@ export async function sendReservationConfirmationEmail(data: ReservationEmailDat
 
   try {
     const result = await transporter.sendMail({
-      from: settings?.fromEmail || 'noreply@queueless.local',
+      from: process.env.FROM_EMAIL || settings?.fromEmail || 'noreply@queueless.local',
       to: data.customerEmail,
       subject: `Potwierdzenie rezerwacji - ${data.serviceName}`,
       text: textContent,
@@ -228,14 +252,14 @@ export async function sendReservationConfirmationEmail(data: ReservationEmailDat
     });
 
     console.log('Email wysłany:', result.messageId);
-    
+
     // Dla Ethereal zwróć URL podglądu
     if ('getTestMessageUrl' in transporter && typeof transporter.getTestMessageUrl === 'function') {
       const previewUrl = transporter.getTestMessageUrl(result);
       console.log('Podgląd emaila:', previewUrl);
       return { success: true, messageId: result.messageId, previewUrl };
     }
-    
+
     return { success: true, messageId: result.messageId };
   } catch (error) {
     console.error('Błąd wysyłania emaila:', error);
