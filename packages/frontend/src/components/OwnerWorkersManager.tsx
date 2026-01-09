@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../lib/api';
+import { api, API_URL } from '../lib/api';
 
 interface Worker {
   id: number;
   email: string;
+  nickname?: string;
+  avatarUrl?: string;
   role: string;
   canServe: boolean;
   isTrainee: boolean;
@@ -24,7 +26,7 @@ export default function OwnerWorkersManager() {
   const loadWorkers = async () => {
     try {
       setLoading(true);
-      const companiesRes = await api<{ companies: Array<{id: number}> }>('/companies/owner/companies');
+      const companiesRes = await api<{ companies: Array<{ id: number }> }>('/companies/owner/companies');
       if (companiesRes.companies.length > 0) {
         const companyId = companiesRes.companies[0].id;
         const response = await api<{ workers: Worker[] }>(`/companies/${companyId}/workers`);
@@ -40,32 +42,32 @@ export default function OwnerWorkersManager() {
 
   const addWorker = async () => {
     if (!newWorkerEmail) return;
-    
+
     // Walidacja formatu email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newWorkerEmail)) {
       alert('Proszę podać prawidłowy adres email');
       return;
     }
-    
+
     try {
       setAddingWorker(true);
-      const companiesRes = await api<{ companies: Array<{id: number}> }>('/companies/owner/companies');
+      const companiesRes = await api<{ companies: Array<{ id: number }> }>('/companies/owner/companies');
       if (companiesRes.companies.length === 0) return;
-      
+
       const companyId = companiesRes.companies[0].id;
-      
+
       await api(`/companies/${companyId}/members`, {
         method: 'POST',
         body: JSON.stringify({ email: newWorkerEmail, role: 'WORKER' }),
       });
-      
+
       setNewWorkerEmail('');
       setMessage('Pracownik dodany pomyślnie');
       loadWorkers();
     } catch (error: any) {
       console.error('Błąd podczas dodawania pracownika:', error);
-      
+
       // Lepsze komunikaty błędów
       if (error.message?.includes('User not found') || error.message?.includes('Nie znaleziono')) {
         setError(`Nie znaleziono użytkownika o emailu: ${newWorkerEmail}. Upewnij się, że osoba najpierw zarejestrowała się w systemie.`);
@@ -81,16 +83,16 @@ export default function OwnerWorkersManager() {
 
   const updateWorkerStatus = async (workerId: number, updates: Partial<Worker>) => {
     try {
-      const companiesRes = await api<{ companies: Array<{id: number}> }>('/companies/owner/companies');
+      const companiesRes = await api<{ companies: Array<{ id: number }> }>('/companies/owner/companies');
       if (companiesRes.companies.length === 0) return;
-      
+
       const companyId = companiesRes.companies[0].id;
-      
+
       await api(`/companies/${companyId}/workers/${workerId}`, {
         method: 'PUT',
         body: JSON.stringify(updates),
       });
-      
+
       setMessage('Ustawienia pracownika zaktualizowane');
       loadWorkers();
     } catch (err) {
@@ -101,17 +103,17 @@ export default function OwnerWorkersManager() {
 
   const removeWorker = async (workerId: number) => {
     if (!confirm('Czy na pewno chcesz usunąć tego pracownika z firmy?')) return;
-    
+
     try {
-      const companiesRes = await api<{ companies: Array<{id: number}> }>('/companies/owner/companies');
+      const companiesRes = await api<{ companies: Array<{ id: number }> }>('/companies/owner/companies');
       if (companiesRes.companies.length === 0) return;
-      
+
       const companyId = companiesRes.companies[0].id;
-      
+
       await api(`/companies/${companyId}/members/${workerId}`, {
         method: 'DELETE'
       });
-      
+
       setMessage('Pracownik usunięty z firmy');
       loadWorkers();
     } catch (err) {
@@ -162,7 +164,7 @@ export default function OwnerWorkersManager() {
       {/* Lista pracowników */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold mb-4">Twoi pracownicy</h2>
-        
+
         {workers.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-500">Nie masz jeszcze żadnych pracowników</p>
@@ -173,11 +175,20 @@ export default function OwnerWorkersManager() {
               <div key={worker.id} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <div className="flex items-center space-x-3">
-                      <h3 className="text-lg font-medium">{worker.email}</h3>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        worker.role === 'OWNER' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
+                    <div className="flex items-center gap-3">
+                      {worker.avatarUrl ? (
+                        <img src={`${API_URL}${worker.avatarUrl}`} alt="" className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                      ) : (
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center text-blue-600 font-bold shadow-sm">
+                          {(worker.nickname || worker.email).charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">{worker.nickname || worker.email}</h3>
+                        {worker.nickname && <div className="text-xs text-gray-400">{worker.email}</div>}
+                      </div>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${worker.role === 'OWNER' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
                         {worker.role === 'OWNER' ? 'Właściciel' : 'Pracownik'}
                       </span>
                       {worker.isTrainee && (
