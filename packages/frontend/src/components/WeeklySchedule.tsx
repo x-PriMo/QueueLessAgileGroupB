@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 import { api } from '../lib/api';
 import BreaksManager from './BreaksManager';
 
+
 interface Worker {
     id: number;
     email: string;
@@ -31,6 +32,7 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
     const [shifts, setShifts] = useState<Shift[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+
     const [modalData, setModalData] = useState<{
         selectedWorkerIds: number[];
         date: string;
@@ -186,6 +188,14 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
                 >
                     Wróć do dzisiaj
                 </button>
+            </div>
+
+            {/* Toolbar */}
+            <div className="px-4 py-3 bg-white border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-sm font-medium text-gray-500">Zarządzanie</h3>
+                <div className="flex gap-2">
+
+                </div>
             </div>
 
             {/* Calendar Grid */}
@@ -404,6 +414,7 @@ export default function WeeklySchedule({ companyId }: WeeklyScheduleProps) {
                     }}
                 />
             )}
+
         </div>
     );
 }
