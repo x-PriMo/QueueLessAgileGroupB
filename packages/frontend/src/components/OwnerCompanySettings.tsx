@@ -249,7 +249,7 @@ export default function OwnerCompanySettings() {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="glass-premium rounded-2xl p-6">
         <div className="text-center">
           <div className="brand-spinner mx-auto mb-4"></div>
           <p className="text-gray-500">Ładowanie ustawień firmy...</p>
@@ -260,7 +260,7 @@ export default function OwnerCompanySettings() {
 
   if (!company) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="glass-premium rounded-2xl p-6">
         <div className="text-center">
           <p className="text-gray-500">Nie masz przypisanej żadnej firmy</p>
         </div>
@@ -270,7 +270,7 @@ export default function OwnerCompanySettings() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="glass-premium rounded-2xl p-6 animate-fade-in">
         <h2 className="text-xl font-semibold mb-6">Podstawowe informacje</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -396,7 +396,7 @@ export default function OwnerCompanySettings() {
             <button
               type="submit"
               disabled={isLoading}
-              className="btn-brand disabled:opacity-50"
+              className="btn-glow disabled:opacity-50"
             >
               {isLoading ? 'Zapisywanie...' : 'Zapisz zmiany'}
             </button>
@@ -405,7 +405,7 @@ export default function OwnerCompanySettings() {
       </div>
 
       {/* Logo Upload */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="glass-premium rounded-2xl p-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
         <h3 className="text-lg font-medium mb-3">Logo firmy</h3>
         <div className="flex items-center space-x-4 mb-4">
           {company.logoPath ? (
@@ -424,7 +424,7 @@ export default function OwnerCompanySettings() {
       {/* AutoAccept & WorkersCanAccept Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* AutoAccept Toggle */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="glass-premium rounded-2xl p-6 hover-rise animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2 mb-2">
@@ -498,7 +498,7 @@ export default function OwnerCompanySettings() {
         </div>
 
         {/* WorkersCanAccept Toggle */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="glass-premium rounded-2xl p-6 hover-rise animate-fade-in" style={{ animationDelay: '0.3s' }}>
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2 mb-2">
@@ -573,7 +573,7 @@ export default function OwnerCompanySettings() {
       </div>
 
       {/* Default Breaks Section */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="glass-premium rounded-2xl p-6 animate-fade-in" style={{ animationDelay: '0.4s' }}>
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2 mb-2">
@@ -590,7 +590,7 @@ export default function OwnerCompanySettings() {
 
         <div className="space-y-3">
           {defaultBreaks.map((breakItem, index) => (
-            <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+            <div key={index} className="flex items-center gap-3 p-3 bg-white/40 backdrop-blur-sm rounded-lg border border-white/40">
               <div className="flex-1 grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
@@ -662,7 +662,7 @@ export default function OwnerCompanySettings() {
             type="button"
             onClick={handleSaveDefaultBreaks}
             disabled={isLoading}
-            className="flex-1 btn-brand disabled:opacity-50"
+            className="flex-1 btn-glow disabled:opacity-50"
           >
             {isLoading ? 'Zapisywanie...' : 'Zapisz przerwy'}
           </button>
