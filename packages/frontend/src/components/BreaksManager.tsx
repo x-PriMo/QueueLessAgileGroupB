@@ -1,4 +1,4 @@
-super import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { api } from '../lib/api';
 
 interface Break {
@@ -17,7 +17,7 @@ interface BreaksManagerProps {
     onUpdate: () => void;
 }
 
-export default function BreaksManager({ shiftId, shiftDate, shiftStart, shiftEnd, onClose, onUpdate }: BreaksManagerProps) {
+const BreaksManager = memo(function BreaksManager({ shiftId, shiftDate, shiftStart, shiftEnd, onClose, onUpdate }: BreaksManagerProps) {
     const [breaks, setBreaks] = useState<Break[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -25,11 +25,7 @@ export default function BreaksManager({ shiftId, shiftDate, shiftStart, shiftEnd
     const [newBreakDuration, setNewBreakDuration] = useState(15);
     const [editingBreak, setEditingBreak] = useState<number | null>(null);
 
-    useEffect(() => {
-        loadBreaks();
-    }, [shiftId]);
-
-    const loadBreaks = async () => {
+    const loadBreaks = useCallback(async () => {
         try {
             setLoading(true);
             const response = await api<{ breaks: Break[] }>(`/worker/breaks?shiftId=${shiftId}`);
@@ -40,9 +36,9 @@ export default function BreaksManager({ shiftId, shiftDate, shiftStart, shiftEnd
         } finally {
             setLoading(false);
         }
-    };
+    }, [shiftId]);
 
-    const handleAddBreak = async (e: React.FormEvent) => {
+    const handleAddBreak = async (e: any) => {
         e.preventDefault();
         setError('');
 
@@ -266,7 +262,9 @@ export default function BreaksManager({ shiftId, shiftDate, shiftStart, shiftEnd
             </div>
         </div>
     );
-}
+});
+
+export default BreaksManager;
 
 // Helper function to calculate duration in minutes
 function calculateDuration(start: string, end: string): number {
