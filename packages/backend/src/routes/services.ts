@@ -429,6 +429,15 @@ router.get('/companies/:companyId/services/:serviceId/slots', async (req: Reques
     }
   });
 
+  // 3. Generuj dynamiczne "kotwice" po każdej przerwie
+  breaks.forEach(brk => {
+    const breakEnd = DateTime.fromISO(`${date}T${brk.endTime}`);
+    // Dodaj slot tylko jeśli mieści się w godzinach pracy
+    if (breakEnd >= workStart && breakEnd < workEnd) {
+      tryAddSlot(breakEnd);
+    }
+  });
+
   // Sortuj sloty chronologicznie
   allSlots.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
@@ -472,13 +481,14 @@ router.get('/companies/:companyId/shifts', (req: Request, res: Response) => {
     `).all(companyId, startDate, endDate);
   }
 
-  // Dodaj workerEmail dla kompatybilności z frontendem
-  const shiftsWithEmail = shifts.map((s: any) => {
+  // Dodaj workerEmail i breaks dla kompatybilności z frontendem
+  const shiftsWithDetails = shifts.map((s: any) => {
     const worker = db.prepare('SELECT email FROM users WHERE id = ?').get(s.workerId) as { email: string };
-    return { ...s, workerEmail: worker?.email };
+    const breaks = db.prepare('SELECT id, startTime, endTime FROM breaks WHERE shiftId = ?').all(s.id) as Array<{ id: number; startTime: string; endTime: string }>;
+    return { ...s, workerEmail: worker?.email, breaks: breaks || [] };
   });
 
-  res.json({ shifts: shiftsWithEmail });
+  res.json({ shifts: shiftsWithDetails });
 });
 
 // Utwórz zmianę dla pracownika (tylko właściciel)
@@ -516,6 +526,23 @@ router.post('/companies/:companyId/workers/:workerId/shifts',
         INSERT INTO worker_shifts (workerId, shiftId)
         VALUES (?, ?)
       `).run(workerId, shiftResult.lastInsertRowid);
+
+      // Auto-create breaks from company defaultBreaks
+      const company = db.prepare('SELECT defaultBreaks FROM companies WHERE id = ?').get(companyId) as { defaultBreaks?: string } | undefined;
+      if (company?.defaultBreaks) {
+        try {
+          const defaultBreaks = JSON.parse(company.defaultBreaks) as Array<{ startTime: string; endTime: string }>;
+          for (const breakDef of defaultBreaks) {
+            // Validate break is within shift time
+            if (breakDef.startTime >= startTime && breakDef.endTime <= endTime) {
+              db.prepare('INSERT INTO breaks (shiftId, startTime, endTime) VALUES (?, ?, ?)')
+                .run(shiftResult.lastInsertRowid, breakDef.startTime, breakDef.endTime);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to parse/create default breaks:', e);
+        }
+      }
 
       const shift = db.prepare(`
         SELECT s.id, s.date, s.startTime, s.endTime
