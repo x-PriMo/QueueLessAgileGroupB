@@ -1,4 +1,9 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
 import express from 'express';
+
+// Load .env from packages/backend directory
+config({ path: resolve(__dirname, '../.env') });
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
@@ -58,6 +63,8 @@ app.use(
 // Serwuj uploady logo
 const uploadsDir = path.join(process.cwd(), 'packages', 'backend', 'uploads', 'logos');
 app.use('/uploads/logos', express.static(uploadsDir));
+const avatarsDir = path.join(process.cwd(), 'packages', 'backend', 'uploads', 'avatars');
+app.use('/uploads/avatars', express.static(avatarsDir));
 // Statyczne materiały referencyjne (logo projektu) z folderu Zajecia3
 const staticDir = path.join(process.cwd(), '..', '..', 'Zajecia3');
 app.use('/static', express.static(staticDir));
@@ -76,6 +83,8 @@ app.use('/working-hours', workingHoursRoutes);
 app.use('/services', servicesRoutes);
 app.use('/worker', workerRoutes);
 app.use('/queue', queueRoutes);
+import shiftsRoutes from './routes/shifts';
+app.use('/shifts', shiftsRoutes);
 
 app.use(errorHandler);
 
