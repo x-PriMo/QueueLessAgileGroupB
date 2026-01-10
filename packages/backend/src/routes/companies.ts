@@ -75,7 +75,7 @@ router.get('/:companyId', (req: Request, res: Response) => {
   const company = db
     .prepare(`
       SELECT c.id, c.name, c.timezone, c.logoPath, c.address, c.phone, c.contactEmail, c.website,
-             c.slotMinutes, c.traineeExtraMinutes, c.autoAccept,
+             c.slotMinutes, c.traineeExtraMinutes, c.autoAccept, c.defaultBreaks,
              m.category, m.description
       FROM companies c
       LEFT JOIN company_meta m ON m.companyId = c.id
@@ -93,15 +93,17 @@ router.get('/:companyId', (req: Request, res: Response) => {
       slotMinutes?: number;
       traineeExtraMinutes?: number;
       autoAccept?: number;
+      defaultBreaks?: string;
       category?: string;
       description?: string;
     } | undefined;
   if (!company) return res.status(404).json({ error: 'Not found' });
 
-  // Convert autoAccept from SQLite integer to boolean
+  // Convert autoAccept from SQLite integer to boolean and parse defaultBreaks JSON
   const companyWithBoolean = {
     ...company,
-    autoAccept: Boolean(company.autoAccept)
+    autoAccept: Boolean(company.autoAccept),
+    defaultBreaks: company.defaultBreaks ? JSON.parse(company.defaultBreaks) : []
   };
 
   res.json({ company: companyWithBoolean });
@@ -138,18 +140,57 @@ router.get('/categories/list', (_req: Request, res: Response) => {
   res.json({ categories: unified });
 });
 
+// PATCH /companies/:companyId/default-breaks - Update default breaks for company (OWNER only)
+const defaultBreaksSchema = z.array(z.object({
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/)
+}));
+
+router.patch('/:companyId/default-breaks',
+  authGuard,
+  memberGuard('companyId'),
+  roleGuard('OWNER'),
+  (req: Request, res: Response) => {
+    const companyId = Number(req.params.companyId);
+    const parsed = defaultBreaksSchema.safeParse(req.body.defaultBreaks);
+
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid breaks format', details: parsed.error });
+    }
+
+    const defaultBreaks = parsed.data;
+
+    // Validate that breaks don't overlap and start < end
+    for (const breakItem of defaultBreaks) {
+      if (breakItem.startTime >= breakItem.endTime) {
+        return res.status(400).json({ error: `Invalid break: startTime must be before endTime` });
+      }
+    }
+
+    try {
+      db.prepare('UPDATE companies SET defaultBreaks = ? WHERE id = ?')
+        .run(JSON.stringify(defaultBreaks), companyId);
+
+      res.json({ success: true, defaultBreaks });
+    } catch (error) {
+      console.error('Error updating default breaks:', error);
+      res.status(500).json({ error: 'Failed to update default breaks' });
+    }
+  }
+);
+
 // Pracownicy firmy (role=WORKER)
 router.get('/:companyId/workers', (req: Request, res: Response) => {
   const companyId = Number(req.params.companyId);
   const rows = db
     .prepare(`
-      SELECT u.id, u.email, cm.role, u.canServe, u.isTrainee
+      SELECT u.id, u.email, u.nickname, u.avatarUrl, cm.role, u.canServe, u.isTrainee
       FROM company_members cm
       JOIN users u ON u.id = cm.userId
       WHERE cm.companyId = ? AND cm.role IN ('WORKER', 'OWNER')
       ORDER BY u.email
     `)
-    .all(companyId) as Array<{ id: number; email: string; role: 'WORKER' | 'OWNER'; canServe: number; isTrainee: number }>;
+    .all(companyId) as Array<{ id: number; email: string; nickname?: string; avatarUrl?: string; role: 'WORKER' | 'OWNER'; canServe: number; isTrainee: number }>;
 
   const workers = rows.map(r => ({
     ...r,
@@ -520,7 +561,7 @@ router.get('/owner/companies', authGuard, (req: Request, res: Response) => {
 
   const companies = db.prepare(`
     SELECT c.id, c.name, c.timezone, c.logoPath, c.slotMinutes, c.traineeExtraMinutes, c.autoAccept, c.workersCanAccept,
-           m.category, m.description, c.address, c.phone, c.contactEmail, c.website
+           m.category, m.description, c.address, c.phone, c.contactEmail, c.website, c.createdAt
     FROM companies c
     JOIN company_members cm ON cm.companyId = c.id
     LEFT JOIN company_meta m ON m.companyId = c.id
