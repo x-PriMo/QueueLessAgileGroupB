@@ -228,7 +228,8 @@ router.get('/company/:companyId', authGuard, memberGuard('companyId'), (req: Req
       SELECT 
         r.id, r.email, r.customerName, r.phone, r.date, r.startTime, r.status, 
         r.serviceId, s.name as serviceName, s.durationMinutes, s.price,
-        r.workerId, u.email as workerFirstName, '' as workerLastName
+        r.workerId, u.email as workerEmail, u.nickname as workerNickname, u.avatarUrl as workerAvatarUrl,
+        u.email as workerFirstName, '' as workerLastName
       FROM reservations r
       LEFT JOIN services s ON s.id = r.serviceId
       LEFT JOIN users u ON u.id = r.workerId
@@ -429,6 +430,167 @@ router.put('/:id/reschedule', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+
+// POST /reservations/company/:companyId/manual - Ręczne dodawanie rezerwacji przez pracownika/właściciela
+const manualReservationSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  serviceId: z.number(),
+  workerId: z.number(),
+  clientPhone: z.string().min(5, 'Numer telefonu jest wymagany'),
+  clientName: z.string().min(2, 'Imię klienta jest wymagane'),
+  clientEmail: z.string().email().optional().or(z.literal('')),
+});
+
+import { workerOrOwnerGuard } from '../middleware/auth';
+
+router.post(
+  '/company/:companyId/manual',
+  authGuard,
+  memberGuard('companyId'),
+  workerOrOwnerGuard,
+  async (req: Request, res: Response) => {
+    const companyId = Number(req.params.companyId);
+    const parsed = manualReservationSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Błędy walidacji', details: parsed.error.flatten() });
+    }
+
+    const { date, startTime, serviceId, workerId, clientPhone, clientName, clientEmail } = parsed.data;
+
+    // 1. Znajdź użytkownika (jeśli istnieje)
+    let userId: number | null = null;
+    let finalEmail: string | null = clientEmail && clientEmail.length > 0 ? clientEmail : null;
+    let finalPhone: string = clientPhone;
+
+    // Próba po emailu
+    if (finalEmail) {
+      const userByEmail = db.prepare('SELECT id, phoneNumber FROM users WHERE LOWER(email) = LOWER(?)').get(finalEmail) as { id: number; phoneNumber?: string } | undefined;
+      if (userByEmail) {
+        userId = userByEmail.id;
+        // Jeśli użytkownik nie ma telefonu w koncie, a podano go w formularzu - używamy z formularza (ale nie nadpisujemy konta tutaj)
+      }
+    }
+
+    // Jeśli nie znaleziono po emailu, próba po numerze telefonu
+    if (!userId) {
+      const userByPhone = db.prepare('SELECT id, email FROM users WHERE phoneNumber = ?').get(clientPhone) as { id: number; email: string } | undefined;
+      if (userByPhone) {
+        userId = userByPhone.id;
+        finalEmail = userByPhone.email || finalEmail; // Użyj emaila z konta jeśli dostępny
+      }
+    }
+
+    try {
+      // 2. Walidacja usług i dostępności (uproszczona - zakładamy że pracownik wie co robi, ale sprawdzamy godziny otwarcia i konflikty)
+
+      // Pobierz szczegóły usługi
+      const service = db.prepare('SELECT name, durationMinutes, price FROM services WHERE id = ?').get(serviceId) as { name: string; durationMinutes: number; price: number } | undefined;
+      if (!service) return res.status(404).json({ error: 'Usługa nie istnieje' });
+
+      // Oblicz czas zakończenia
+      const startDt = DateTime.fromFormat(startTime, 'HH:mm');
+      const endDt = startDt.plus({ minutes: service.durationMinutes });
+      const endTime = endDt.toFormat('HH:mm');
+
+      // Sprawdź konflikty (tylko z innymi rezerwacjami tego pracownika)
+      const conflicts = db.prepare(`
+        SELECT r.id
+        FROM reservations r
+        JOIN services s ON s.id = r.serviceId
+        WHERE r.companyId = ? AND r.date = ? AND r.workerId = ? AND r.status != 'CANCELLED'
+        AND (
+          (r.startTime < ? AND 
+           datetime(r.date || ' ' || r.startTime, '+' || s.durationMinutes || ' minutes') > datetime(? || ' ' || ?))
+        )
+      `).all(companyId, date, workerId, endTime, date, startTime);
+
+      if (conflicts.length > 0) {
+        return res.status(409).json({ error: 'Konflikt terminów: pracownik ma już rezerwację w tym czasie' });
+      }
+
+      // 3. Utwórz rezerwację
+      // Status zawsze ACCEPTED dla rezerwacji ręcznych
+      const status = 'ACCEPTED';
+
+      const info = db.prepare(
+        `INSERT INTO reservations (companyId, userId, email, date, startTime, status, serviceId, workerId, customerName, phone)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        companyId,
+        userId,
+        finalEmail,
+        date,
+        startTime,
+        status,
+        serviceId,
+        workerId,
+        clientName,
+        finalPhone
+      );
+
+      const reservationId = info.lastInsertRowid as number;
+
+      // 4. Wyślij powiadomienie email (jeśli mamy email)
+      if (finalEmail) {
+        const companyData = db.prepare(`
+          SELECT c.name as companyName, c.timezone, c.contactEmail, m.description as companyAddress
+          FROM companies c
+          LEFT JOIN company_meta m ON m.companyId = c.id
+          WHERE c.id = ?
+        `).get(companyId) as { companyName: string; timezone: string; contactEmail: string; companyAddress?: string } | undefined;
+
+        if (companyData) {
+          setImmediate(async () => {
+            try {
+              const cancelUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reservations/${reservationId}/cancel`;
+              const icsContent = generateReservationICS(
+                service.name,
+                companyData.companyName,
+                companyData.companyAddress || null,
+                companyData.contactEmail || 'noreply@queueless.local',
+                finalEmail!,
+                clientName,
+                date,
+                startTime,
+                endTime,
+                companyData.timezone,
+                `Rezerwacja ręczna: ${service.name}`
+              );
+
+              await sendReservationConfirmationEmail({
+                reservationId,
+                customerEmail: finalEmail!,
+                customerName: clientName,
+                companyName: companyData.companyName,
+                companyAddress: companyData.companyAddress,
+                serviceName: service.name,
+                serviceDuration: service.durationMinutes,
+                servicePrice: service.price,
+                reservationDate: date,
+                reservationStartTime: startTime,
+                reservationEndTime: endTime,
+                companyTimezone: companyData.timezone,
+                cancelUrl,
+                icsContent
+              });
+            } catch (e) {
+              console.error('Failed to send email for manual reservation:', e);
+            }
+          });
+        }
+      }
+
+      res.status(201).json({ success: true, reservationId });
+
+    } catch (error) {
+      console.error('Błąd podczas tworzenia rezerwacji ręcznej:', error);
+      res.status(500).json({ error: 'Wystąpił błąd serwera' });
+    }
+  }
+);
 
 export default router;
 
